@@ -26,9 +26,17 @@ npm run build -w apps/sync-server
 
 # Docker (server + postgres)
 docker compose up --build
+
+# E2E tests (requires dev:desktop + dev:sync-server running)
+npm run test:e2e              # Run all E2E tests
+npm run test:e2e:ui           # UI-based E2E (Playwright clicks)
+npm run test:e2e:runtime      # API-based E2E (desktopApi calls)
+
+# Type-check E2E tests
+npx tsc -p e2e/tsconfig.json --noEmit
 ```
 
-No test runner configured. E2E validation scripts exist at root: `slopify_e2e.mjs` and `slopify_runtime_v2.mjs` (run with `node`).
+E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run serially (`workers: 1`) with a 3-minute timeout. Set `SLOPIFY_SERVER_URL`, `SLOPIFY_SERVER_PASSWORD`, and `SLOPIFY_RENDERER_URL` env vars to override defaults.
 
 ## Architecture
 

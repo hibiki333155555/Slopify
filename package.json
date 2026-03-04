@@ -8,9 +8,12 @@
   "scripts": {
     "build": "npm run -ws build",
     "dev:desktop": "npm run -w apps/desktop dev:desktop",
-    "dev:sync-server": "npm run -w apps/sync-server dev"
+    "dev:sync-server": "npm run -w apps/sync-server dev",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --project=ui",
+    "test:e2e:runtime": "npx playwright test --project=runtime"
   },
   "devDependencies": {
-    "playwright": "^1.58.2"
+    "@playwright/test": "^1.58.2"
   }
 }
