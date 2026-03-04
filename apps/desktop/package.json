@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "src/main/main.ts",
+  "main": "dist/main/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run dev:desktop",
+    "dev:renderer": "vite --host 127.0.0.1 --port 5173",
+    "dev:main": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "dev:electron": "wait-on tcp:127.0.0.1:5173 file:dist/main/main.js && ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron dist/main/main.js",
+    "dev:desktop": "concurrently -k \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -26,7 +30,9 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^9.2.1",
     "typescript": "^5.6.3",
-    "vite": "^5.4.8"
+    "vite": "^5.4.8",
+    "wait-on": "^8.0.5"
   }
 }

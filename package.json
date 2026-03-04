@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build": "npm run -ws build",
-    "dev:desktop": "npm run -w apps/desktop dev",
+    "dev:desktop": "npm run -w apps/desktop dev:desktop",
     "dev:sync-server": "npm run -w apps/sync-server dev"
   },
   "devDependencies": {
