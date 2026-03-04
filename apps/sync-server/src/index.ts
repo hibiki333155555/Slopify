@@ -1,187 +1,180 @@
 import Fastify from "fastify";
-import { Server as SocketIoServer } from "socket.io";
+import { Server } from "socket.io";
 import { z } from "zod";
-import {
-  clientSyncEventSchema,
-  parsePayloadForEventType,
-  serverSyncEventSchema,
-  syncAckSchema,
-  ulidSchema
-} from "@slopify/shared";
-import { initializeDatabase, pool } from "./db.js";
+import { eventSchema, type EventRecord } from "@slopify/shared";
+import { createServerDb } from "./db.js";
 import { SyncRepository } from "./repository.js";
 
-const fastify = Fastify({ logger: true });
-const repository = new SyncRepository(pool);
-
-const io = new SocketIoServer(fastify.server, {
-  cors: {
-    origin: "*"
-  }
+const authCheckSchema = z.object({
+  serverAccessPassword: z.string().min(1),
 });
 
-const socketAuthSchema = z.object({
-  userId: ulidSchema,
-  deviceId: ulidSchema
+const createInviteSchema = z.object({
+  projectId: z.string().min(1),
+  requesterUserId: z.string().min(1),
+  serverAccessPassword: z.string().min(1),
 });
 
-const syncJoinProjectsSchema = z.object({
-  projectIds: z.array(ulidSchema).max(1000)
+const joinInviteSchema = z.object({
+  inviteCode: z.string().min(1),
+  userId: z.string().min(1),
+  displayName: z.string().min(1),
+  avatarUrl: z.string().nullable().optional(),
+  serverAccessPassword: z.string().min(1),
 });
 
-const syncPullSchema = z.object({
-  projectId: ulidSchema,
-  lastPulledSeq: z.number().int().nonnegative()
+const pullSchema = z.object({
+  projectIds: z.array(z.string().min(1)),
+  since: z.number().int().nonnegative(),
+  serverAccessPassword: z.string().min(1),
 });
 
-const syncPushSchema = z.object({
-  events: z.array(clientSyncEventSchema).max(500)
+const pushSchema = z.object({
+  events: z.array(eventSchema),
+  serverAccessPassword: z.string().min(1),
 });
 
-const createInviteBodySchema = z.object({
-  projectId: ulidSchema,
-  userId: ulidSchema,
-  expiresInDays: z.number().int().min(1).max(30).default(7)
-});
+const start = async (): Promise<void> => {
+  const { pool, config } = await createServerDb();
+  const repository = new SyncRepository(pool);
 
-const joinInviteBodySchema = z.object({
-  code: z.string().min(5).max(64),
-  userId: ulidSchema
-});
+  const fastify = Fastify({ logger: true });
 
-function emitPresence(projectId: string): void {
-  const count = io.sockets.adapter.rooms.get(projectId)?.size ?? 0;
-  io.to(projectId).emit("presence:update", {
-    projectId,
-    onlineCount: count
-  });
-}
+  fastify.get("/health", async () => ({ ok: true }));
 
-fastify.get("/health", async () => ({ ok: true }));
-
-fastify.post("/invites", async (request, reply) => {
-  const parsed = createInviteBodySchema.safeParse(request.body);
-  if (!parsed.success) {
-    return reply.status(400).send({ error: parsed.error.flatten() });
-  }
-  const result = await repository.createInvite(parsed.data.projectId, parsed.data.userId, parsed.data.expiresInDays);
-  return reply.send(result);
-});
-
-fastify.post("/invites/join", async (request, reply) => {
-  const parsed = joinInviteBodySchema.safeParse(request.body);
-  if (!parsed.success) {
-    return reply.status(400).send({ error: parsed.error.flatten() });
-  }
-
-  try {
-    const result = await repository.joinByInvite(parsed.data.code, parsed.data.userId);
-    return reply.send(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Join failed";
-    return reply.status(400).send({ error: message });
-  }
-});
-
-io.on("connection", (socket) => {
-  const authParsed = socketAuthSchema.safeParse(socket.handshake.auth);
-  if (!authParsed.success) {
-    socket.disconnect(true);
-    return;
-  }
-  const auth = authParsed.data;
-
-  socket.on("sync:joinProjects", async (rawPayload) => {
-    const parsed = syncJoinProjectsSchema.safeParse(rawPayload);
-    if (!parsed.success) {
-      return;
+  fastify.post("/auth/check", async (request, reply) => {
+    const body = authCheckSchema.parse(request.body);
+    if (body.serverAccessPassword !== config.serverAccessPassword) {
+      reply.status(401);
+      return { ok: false };
     }
-
-    for (const projectId of parsed.data.projectIds) {
-      const member = await repository.isMember(projectId, auth.userId);
-      if (!member) {
-        continue;
-      }
-      await socket.join(projectId);
-      emitPresence(projectId);
-    }
+    return { ok: true };
   });
 
-  socket.on("sync:pull", async (rawPayload) => {
-    const parsed = syncPullSchema.safeParse(rawPayload);
-    if (!parsed.success) {
-      return;
+  fastify.post("/invites/create", async (request, reply) => {
+    const body = createInviteSchema.parse(request.body);
+    if (body.serverAccessPassword !== config.serverAccessPassword) {
+      reply.status(401);
+      return { error: "Unauthorized" };
     }
-    const member = await repository.isMember(parsed.data.projectId, auth.userId);
-    if (!member) {
-      return;
+    const inviteCode = await repository.createInvite(body.projectId, body.requesterUserId);
+    return { inviteCode };
+  });
+
+  fastify.post("/invites/join", async (request, reply) => {
+    const body = joinInviteSchema.parse(request.body);
+    if (body.serverAccessPassword !== config.serverAccessPassword) {
+      reply.status(401);
+      return { error: "Unauthorized" };
     }
-    const events = await repository.pullEvents(parsed.data.projectId, parsed.data.lastPulledSeq);
-    socket.emit("sync:events", {
-      projectId: parsed.data.projectId,
-      events
+
+    const joined = await repository.joinByInvite({
+      inviteCode: body.inviteCode,
+      user: {
+        userId: body.userId,
+        displayName: body.displayName,
+        avatarUrl: body.avatarUrl ?? null,
+      },
     });
+
+    return joined;
   });
 
-  socket.on("sync:pushEvents", async (rawPayload) => {
-    const parsed = syncPushSchema.safeParse(rawPayload);
-    if (!parsed.success) {
-      return;
-    }
+  const io = new Server(fastify.server, {
+    cors: {
+      origin: "*",
+    },
+  });
 
-    const accepted: Array<z.infer<typeof clientSyncEventSchema>> = [];
-    for (const event of parsed.data.events) {
-      if (event.actorUserId !== auth.userId) {
-        continue;
+  io.use(async (socket, next) => {
+    try {
+      const auth = z
+        .object({
+          userId: z.string().min(1),
+          displayName: z.string().min(1),
+          avatarUrl: z.string().nullable().optional(),
+          serverAccessPassword: z.string().min(1),
+        })
+        .parse(socket.handshake.auth);
+
+      if (auth.serverAccessPassword !== config.serverAccessPassword) {
+        next(new Error("Unauthorized"));
+        return;
       }
-      if (event.eventType !== "project.created") {
-        const member = await repository.isMember(event.projectId, auth.userId);
-        if (!member) {
-          continue;
-        }
-      } else {
-        parsePayloadForEventType(event.eventType, event.payload);
-      }
-      accepted.push(event);
-    }
 
-    if (accepted.length === 0) {
-      return;
-    }
-
-    const result = await repository.appendClientEvents(accepted);
-    const acks = result.acks.map((ack) => syncAckSchema.parse(ack));
-    socket.emit("sync:ack", { acks });
-
-    for (const [projectId, events] of result.insertedByProject.entries()) {
-      const normalizedEvents = events.map((event) => serverSyncEventSchema.parse(event));
-      io.to(projectId).emit("sync:events", {
-        projectId,
-        events: normalizedEvents
+      await repository.upsertUser({
+        userId: auth.userId,
+        displayName: auth.displayName,
+        avatarUrl: auth.avatarUrl ?? null,
       });
-      emitPresence(projectId);
+
+      socket.data.userId = auth.userId;
+      socket.data.serverAccessPassword = auth.serverAccessPassword;
+      next();
+    } catch (error) {
+      next(error instanceof Error ? error : new Error("Invalid auth"));
     }
   });
 
-  socket.on("disconnecting", () => {
-    const rooms = Array.from(socket.rooms).filter((roomId) => roomId !== socket.id);
-    queueMicrotask(() => {
-      for (const projectId of rooms) {
-        emitPresence(projectId);
+  io.on("connection", async (socket) => {
+    const userId = z.string().parse(socket.data.userId);
+    const memberProjectIds = await repository.listProjectIdsForUser(userId);
+    for (const projectId of memberProjectIds) {
+      socket.join(`project:${projectId}`);
+    }
+
+    socket.on("sync:pull", async (rawPayload: unknown, ack: (response: { events: EventRecord[] }) => void) => {
+      try {
+        const payload = pullSchema.parse(rawPayload);
+        if (payload.serverAccessPassword !== config.serverAccessPassword) {
+          ack({ events: [] });
+          return;
+        }
+
+        for (const projectId of payload.projectIds) {
+          socket.join(`project:${projectId}`);
+        }
+
+        const events = await repository.pullEvents(payload.projectIds, payload.since);
+        ack({ events });
+      } catch {
+        ack({ events: [] });
+      }
+    });
+
+    socket.on("sync:push", async (rawPayload: unknown, ack: (response: { acceptedIds: string[] }) => void) => {
+      try {
+        const payload = pushSchema.parse(rawPayload);
+        if (payload.serverAccessPassword !== config.serverAccessPassword) {
+          ack({ acceptedIds: [] });
+          return;
+        }
+
+        const acceptedIds = await repository.pushEvents(payload.events);
+        ack({ acceptedIds });
+
+        const acceptedSet = new Set(acceptedIds);
+        const acceptedEvents = payload.events.filter((event) => acceptedSet.has(event.id));
+
+        const byProject = new Map<string, EventRecord[]>();
+        for (const event of acceptedEvents) {
+          if (!byProject.has(event.projectId)) {
+            byProject.set(event.projectId, []);
+          }
+          byProject.get(event.projectId)?.push(event);
+        }
+
+        for (const [projectId, projectEvents] of byProject.entries()) {
+          io.to(`project:${projectId}`).emit("sync:event", { projectId });
+          io.to(`project:${projectId}`).emit("sync:events", { events: projectEvents });
+        }
+      } catch {
+        ack({ acceptedIds: [] });
       }
     });
   });
-});
 
-async function bootstrap(): Promise<void> {
-  await initializeDatabase();
+  await fastify.listen({ port: config.port, host: "0.0.0.0" });
+};
 
-  const port = Number(process.env.SYNC_PORT ?? 4000);
-  const host = process.env.SYNC_HOST ?? "0.0.0.0";
-  await fastify.listen({ port, host });
-}
-
-bootstrap().catch((error) => {
-  fastify.log.error(error);
-  process.exit(1);
-});
+void start();

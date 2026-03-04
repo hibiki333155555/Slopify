@@ -1,273 +1,157 @@
 import { z } from "zod";
-import { epochMsSchema, memberRoleSchema, syncStatusSchema, ulidSchema } from "./common.js";
+import {
+  nonEmptyTrimmedStringSchema,
+  ulidSchema,
+  unixMsSchema,
+  workspaceItemTypeSchema,
+} from "./common.js";
 
-export const eventTypes = [
+export const eventTypeSchema = z.enum([
   "project.created",
-  "project.updated",
   "member.joined",
-  "member.left",
+  "chat.created",
+  "chat.renamed",
   "message.posted",
   "decision.recorded",
   "task.created",
   "task.completed",
-  "task.reopened"
-] as const;
-
-export const eventTypeSchema = z.enum(eventTypes);
-export type EventType = (typeof eventTypes)[number];
+  "task.reopened",
+  "doc.created",
+  "doc.renamed",
+  "doc.updated",
+  "doc.comment.added",
+]);
 
 export const projectCreatedPayloadSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(200).default(""),
-  status: z.enum(["active", "paused", "done", "archived"]).default("active")
+  name: nonEmptyTrimmedStringSchema,
 });
-
-export const projectUpdatedPayloadSchema = z
-  .object({
-    name: z.string().trim().min(1).max(100).optional(),
-    description: z.string().max(200).optional(),
-    status: z.enum(["active", "paused", "done", "archived"]).optional()
-  })
-  .refine((value) => value.name !== undefined || value.description !== undefined || value.status !== undefined, {
-    message: "project.updated requires at least one changed field"
-  });
 
 export const memberJoinedPayloadSchema = z.object({
-  userId: ulidSchema,
-  role: memberRoleSchema.default("member")
+  memberUserId: ulidSchema,
+  memberDisplayName: nonEmptyTrimmedStringSchema,
+  memberAvatarUrl: z.string().nullable(),
 });
 
-export const memberLeftPayloadSchema = z.object({
-  userId: ulidSchema
+export const chatCreatedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
+  name: nonEmptyTrimmedStringSchema,
+});
+
+export const chatRenamedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
+  name: nonEmptyTrimmedStringSchema,
 });
 
 export const messagePostedPayloadSchema = z.object({
-  body: z.string().trim().min(1)
+  chatChannelId: ulidSchema,
+  body: nonEmptyTrimmedStringSchema,
 });
 
 export const decisionRecordedPayloadSchema = z.object({
-  decisionId: ulidSchema,
-  summary: z.string().trim().min(1).max(200),
-  note: z.string().max(2000).default("")
+  chatChannelId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
+  body: nonEmptyTrimmedStringSchema,
 });
 
 export const taskCreatedPayloadSchema = z.object({
   taskId: ulidSchema,
-  title: z.string().trim().min(1).max(200),
-  assigneeUserId: ulidSchema.nullable()
+  chatChannelId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
 });
 
 export const taskCompletedPayloadSchema = z.object({
-  taskId: ulidSchema
+  taskId: ulidSchema,
 });
 
 export const taskReopenedPayloadSchema = z.object({
-  taskId: ulidSchema
+  taskId: ulidSchema,
 });
 
-export type EventPayloadByType = {
-  "project.created": z.infer<typeof projectCreatedPayloadSchema>;
-  "project.updated": z.infer<typeof projectUpdatedPayloadSchema>;
-  "member.joined": z.infer<typeof memberJoinedPayloadSchema>;
-  "member.left": z.infer<typeof memberLeftPayloadSchema>;
-  "message.posted": z.infer<typeof messagePostedPayloadSchema>;
-  "decision.recorded": z.infer<typeof decisionRecordedPayloadSchema>;
-  "task.created": z.infer<typeof taskCreatedPayloadSchema>;
-  "task.completed": z.infer<typeof taskCompletedPayloadSchema>;
-  "task.reopened": z.infer<typeof taskReopenedPayloadSchema>;
-};
-
-export const eventPayloadSchemas = {
-  "project.created": projectCreatedPayloadSchema,
-  "project.updated": projectUpdatedPayloadSchema,
-  "member.joined": memberJoinedPayloadSchema,
-  "member.left": memberLeftPayloadSchema,
-  "message.posted": messagePostedPayloadSchema,
-  "decision.recorded": decisionRecordedPayloadSchema,
-  "task.created": taskCreatedPayloadSchema,
-  "task.completed": taskCompletedPayloadSchema,
-  "task.reopened": taskReopenedPayloadSchema
-} as const;
-
-export function parsePayloadForEventType<T extends EventType>(eventType: T, payload: unknown): EventPayloadByType[T] {
-  return eventPayloadSchemas[eventType].parse(payload) as EventPayloadByType[T];
-}
-
-const localEventBaseSchema = z.object({
-  id: ulidSchema,
-  projectId: ulidSchema,
-  seq: z.number().int().positive().nullable(),
-  actorUserId: ulidSchema,
-  entityId: ulidSchema.nullable(),
-  createdAt: epochMsSchema,
-  serverCreatedAt: epochMsSchema.nullable(),
-  syncStatus: syncStatusSchema,
-  retryCount: z.number().int().nonnegative()
+export const docCreatedPayloadSchema = z.object({
+  docId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
+  markdown: z.string(),
 });
 
-const clientSyncEventBaseSchema = z.object({
-  id: ulidSchema,
-  projectId: ulidSchema,
-  actorUserId: ulidSchema,
-  entityId: ulidSchema.nullable(),
-  createdAt: epochMsSchema
+export const docRenamedPayloadSchema = z.object({
+  docId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
 });
 
-const serverSyncEventBaseSchema = clientSyncEventBaseSchema.extend({
-  seq: z.number().int().positive(),
-  serverCreatedAt: epochMsSchema
+export const docUpdatedPayloadSchema = z.object({
+  docId: ulidSchema,
+  markdown: z.string(),
 });
 
-const localProjectCreatedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("project.created"),
-  payload: projectCreatedPayloadSchema
-});
-const localProjectUpdatedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("project.updated"),
-  payload: projectUpdatedPayloadSchema
-});
-const localMemberJoinedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("member.joined"),
-  payload: memberJoinedPayloadSchema
-});
-const localMemberLeftEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("member.left"),
-  payload: memberLeftPayloadSchema
-});
-const localMessagePostedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("message.posted"),
-  payload: messagePostedPayloadSchema
-});
-const localDecisionRecordedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("decision.recorded"),
-  payload: decisionRecordedPayloadSchema
-});
-const localTaskCreatedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("task.created"),
-  payload: taskCreatedPayloadSchema
-});
-const localTaskCompletedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("task.completed"),
-  payload: taskCompletedPayloadSchema
-});
-const localTaskReopenedEventSchema = localEventBaseSchema.extend({
-  eventType: z.literal("task.reopened"),
-  payload: taskReopenedPayloadSchema
+export const docCommentAddedPayloadSchema = z.object({
+  docId: ulidSchema,
+  commentId: ulidSchema,
+  body: nonEmptyTrimmedStringSchema,
+  anchor: z.string().nullable(),
 });
 
-export const localTimelineEventSchema = z.discriminatedUnion("eventType", [
-  localProjectCreatedEventSchema,
-  localProjectUpdatedEventSchema,
-  localMemberJoinedEventSchema,
-  localMemberLeftEventSchema,
-  localMessagePostedEventSchema,
-  localDecisionRecordedEventSchema,
-  localTaskCreatedEventSchema,
-  localTaskCompletedEventSchema,
-  localTaskReopenedEventSchema
+export const eventPayloadSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("project.created"), payload: projectCreatedPayloadSchema }),
+  z.object({ type: z.literal("member.joined"), payload: memberJoinedPayloadSchema }),
+  z.object({ type: z.literal("chat.created"), payload: chatCreatedPayloadSchema }),
+  z.object({ type: z.literal("chat.renamed"), payload: chatRenamedPayloadSchema }),
+  z.object({ type: z.literal("message.posted"), payload: messagePostedPayloadSchema }),
+  z.object({ type: z.literal("decision.recorded"), payload: decisionRecordedPayloadSchema }),
+  z.object({ type: z.literal("task.created"), payload: taskCreatedPayloadSchema }),
+  z.object({ type: z.literal("task.completed"), payload: taskCompletedPayloadSchema }),
+  z.object({ type: z.literal("task.reopened"), payload: taskReopenedPayloadSchema }),
+  z.object({ type: z.literal("doc.created"), payload: docCreatedPayloadSchema }),
+  z.object({ type: z.literal("doc.renamed"), payload: docRenamedPayloadSchema }),
+  z.object({ type: z.literal("doc.updated"), payload: docUpdatedPayloadSchema }),
+  z.object({ type: z.literal("doc.comment.added"), payload: docCommentAddedPayloadSchema }),
 ]);
 
-const clientProjectCreatedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("project.created"),
-  payload: projectCreatedPayloadSchema
-});
-const clientProjectUpdatedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("project.updated"),
-  payload: projectUpdatedPayloadSchema
-});
-const clientMemberJoinedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("member.joined"),
-  payload: memberJoinedPayloadSchema
-});
-const clientMemberLeftEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("member.left"),
-  payload: memberLeftPayloadSchema
-});
-const clientMessagePostedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("message.posted"),
-  payload: messagePostedPayloadSchema
-});
-const clientDecisionRecordedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("decision.recorded"),
-  payload: decisionRecordedPayloadSchema
-});
-const clientTaskCreatedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("task.created"),
-  payload: taskCreatedPayloadSchema
-});
-const clientTaskCompletedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("task.completed"),
-  payload: taskCompletedPayloadSchema
-});
-const clientTaskReopenedEventSchema = clientSyncEventBaseSchema.extend({
-  eventType: z.literal("task.reopened"),
-  payload: taskReopenedPayloadSchema
+export const timelineDisplaySchema = z.object({
+  workspaceType: workspaceItemTypeSchema,
+  workspaceItemId: ulidSchema,
 });
 
-export const clientSyncEventSchema = z.discriminatedUnion("eventType", [
-  clientProjectCreatedEventSchema,
-  clientProjectUpdatedEventSchema,
-  clientMemberJoinedEventSchema,
-  clientMemberLeftEventSchema,
-  clientMessagePostedEventSchema,
-  clientDecisionRecordedEventSchema,
-  clientTaskCreatedEventSchema,
-  clientTaskCompletedEventSchema,
-  clientTaskReopenedEventSchema
-]);
+export const eventSchema = z
+  .object({
+    id: ulidSchema,
+    projectId: ulidSchema,
+    actorUserId: ulidSchema,
+    type: eventTypeSchema,
+    payload: z.record(z.string(), z.unknown()),
+    chatChannelId: ulidSchema.nullable(),
+    docId: ulidSchema.nullable(),
+    createdAt: unixMsSchema,
+  })
+  .superRefine((value, ctx) => {
+    const parsed = eventPayloadSchema.safeParse({ type: value.type, payload: value.payload });
+    if (!parsed.success) {
+      ctx.addIssue({ code: "custom", message: parsed.error.message });
+      return;
+    }
 
-const serverProjectCreatedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("project.created"),
-  payload: projectCreatedPayloadSchema
-});
-const serverProjectUpdatedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("project.updated"),
-  payload: projectUpdatedPayloadSchema
-});
-const serverMemberJoinedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("member.joined"),
-  payload: memberJoinedPayloadSchema
-});
-const serverMemberLeftEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("member.left"),
-  payload: memberLeftPayloadSchema
-});
-const serverMessagePostedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("message.posted"),
-  payload: messagePostedPayloadSchema
-});
-const serverDecisionRecordedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("decision.recorded"),
-  payload: decisionRecordedPayloadSchema
-});
-const serverTaskCreatedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("task.created"),
-  payload: taskCreatedPayloadSchema
-});
-const serverTaskCompletedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("task.completed"),
-  payload: taskCompletedPayloadSchema
-});
-const serverTaskReopenedEventSchema = serverSyncEventBaseSchema.extend({
-  eventType: z.literal("task.reopened"),
-  payload: taskReopenedPayloadSchema
-});
+    if (
+      (value.type === "message.posted" ||
+        value.type === "decision.recorded" ||
+        value.type === "task.created") &&
+      value.chatChannelId === null
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "chatChannelId is required for chat timeline events",
+      });
+    }
 
-export const serverSyncEventSchema = z.discriminatedUnion("eventType", [
-  serverProjectCreatedEventSchema,
-  serverProjectUpdatedEventSchema,
-  serverMemberJoinedEventSchema,
-  serverMemberLeftEventSchema,
-  serverMessagePostedEventSchema,
-  serverDecisionRecordedEventSchema,
-  serverTaskCreatedEventSchema,
-  serverTaskCompletedEventSchema,
-  serverTaskReopenedEventSchema
-]);
+    if (
+      (value.type === "doc.created" ||
+        value.type === "doc.renamed" ||
+        value.type === "doc.updated" ||
+        value.type === "doc.comment.added") &&
+      value.docId === null
+    ) {
+      ctx.addIssue({ code: "custom", message: "docId is required for doc events" });
+    }
+  });
 
-export const syncAckSchema = z.object({
-  eventId: ulidSchema,
-  projectId: ulidSchema,
-  seq: z.number().int().positive(),
-  serverCreatedAt: epochMsSchema
-});
+export type EventType = z.infer<typeof eventTypeSchema>;
+export type EventRecord = z.infer<typeof eventSchema>;
+export type EventPayload = z.infer<typeof eventPayloadSchema>;

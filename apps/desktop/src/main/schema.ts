@@ -1,102 +1,98 @@
 import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const appMetaTable = sqliteTable("app_meta", {
+export const appMeta = sqliteTable("app_meta", {
   key: text("key").primaryKey(),
-  value: text("value").notNull()
+  value: text("value").notNull(),
 });
 
-export const usersTable = sqliteTable("users", {
-  id: text("id").primaryKey(),
+export const users = sqliteTable("users", {
+  userId: text("user_id").primaryKey(),
   displayName: text("display_name").notNull(),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull()
-});
-
-export const projectsTable = sqliteTable("projects", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description").notNull().default(""),
-  status: text("status", { enum: ["active", "paused", "done", "archived"] }).notNull(),
-  ownerUserId: text("owner_user_id").notNull(),
+  avatarUrl: text("avatar_url"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-  archivedAt: integer("archived_at")
 });
 
-export const projectMembersTable = sqliteTable(
+export const projects = sqliteTable("projects", {
+  projectId: text("project_id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const projectMembers = sqliteTable(
   "project_members",
   {
     projectId: text("project_id").notNull(),
     userId: text("user_id").notNull(),
-    role: text("role", { enum: ["owner", "member"] }).notNull(),
     joinedAt: integer("joined_at").notNull(),
-    leftAt: integer("left_at")
   },
   (table) => ({
-    pk: primaryKey({
-      columns: [table.projectId, table.userId]
-    })
-  })
+    pk: primaryKey({ columns: [table.projectId, table.userId] }),
+  }),
 );
 
-export const eventsTable = sqliteTable("events", {
-  id: text("id").primaryKey(),
+export const chatChannels = sqliteTable("chat_channels", {
+  chatChannelId: text("chat_channel_id").primaryKey(),
   projectId: text("project_id").notNull(),
-  seq: integer("seq"),
-  actorUserId: text("actor_user_id").notNull(),
-  eventType: text("event_type").notNull(),
-  entityId: text("entity_id"),
-  payloadJson: text("payload_json").notNull(),
+  name: text("name").notNull(),
   createdAt: integer("created_at").notNull(),
-  serverCreatedAt: integer("server_created_at"),
-  syncStatus: text("sync_status", { enum: ["pending", "synced", "failed"] }).notNull().default("pending"),
-  retryCount: integer("retry_count").notNull().default(0)
+  updatedAt: integer("updated_at").notNull(),
 });
 
-export const decisionsTable = sqliteTable("decisions", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id").notNull(),
-  summary: text("summary").notNull(),
-  note: text("note").notNull().default(""),
-  createdEventId: text("created_event_id").notNull().unique(),
-  createdByUserId: text("created_by_user_id").notNull(),
-  createdAt: integer("created_at").notNull()
-});
-
-export const tasksTable = sqliteTable("tasks", {
-  id: text("id").primaryKey(),
+export const docs = sqliteTable("docs", {
+  docId: text("doc_id").primaryKey(),
   projectId: text("project_id").notNull(),
   title: text("title").notNull(),
-  assigneeUserId: text("assignee_user_id"),
-  status: text("status", { enum: ["open", "done"] }).notNull(),
-  createdEventId: text("created_event_id").notNull().unique(),
-  createdByUserId: text("created_by_user_id").notNull(),
+  markdown: text("markdown").notNull(),
   createdAt: integer("created_at").notNull(),
-  completedAt: integer("completed_at"),
-  completedByUserId: text("completed_by_user_id")
+  updatedAt: integer("updated_at").notNull(),
 });
 
-export const readCursorsTable = sqliteTable("read_cursors", {
+export const docComments = sqliteTable("doc_comments", {
+  commentId: text("comment_id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  docId: text("doc_id").notNull(),
+  authorUserId: text("author_user_id").notNull(),
+  body: text("body").notNull(),
+  anchor: text("anchor"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const tasks = sqliteTable("tasks", {
+  taskId: text("task_id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  chatChannelId: text("chat_channel_id").notNull(),
+  title: text("title").notNull(),
+  completed: integer("completed", { mode: "boolean" }).notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const decisions = sqliteTable("decisions", {
+  decisionId: text("decision_id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  chatChannelId: text("chat_channel_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const events = sqliteTable("events", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull(),
+  actorUserId: text("actor_user_id").notNull(),
+  type: text("type").notNull(),
+  payloadJson: text("payload_json").notNull(),
+  chatChannelId: text("chat_channel_id"),
+  docId: text("doc_id"),
+  createdAt: integer("created_at").notNull(),
+  syncStatus: text("sync_status").notNull(),
+});
+
+export const invites = sqliteTable("invites", {
   projectId: text("project_id").primaryKey(),
-  lastReadSeq: integer("last_read_seq").notNull(),
-  updatedAt: integer("updated_at").notNull()
+  inviteCode: text("invite_code").notNull(),
+  createdAt: integer("created_at").notNull(),
 });
-
-export const projectSyncStateTable = sqliteTable("project_sync_state", {
-  projectId: text("project_id").primaryKey(),
-  lastPulledSeq: integer("last_pulled_seq").notNull(),
-  lastSyncAt: integer("last_sync_at"),
-  lastError: text("last_error")
-});
-
-export const schema = {
-  appMetaTable,
-  usersTable,
-  projectsTable,
-  projectMembersTable,
-  eventsTable,
-  decisionsTable,
-  tasksTable,
-  readCursorsTable,
-  projectSyncStateTable
-};

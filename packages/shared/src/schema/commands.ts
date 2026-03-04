@@ -1,65 +1,108 @@
 import { z } from "zod";
-import { epochMsSchema, projectStatusSchema, ulidSchema } from "./common.js";
-import { timelineFilterSchema } from "./entities.js";
+import {
+  nonEmptyTrimmedStringSchema,
+  optionalUrlSchema,
+  ulidSchema,
+  workspaceItemTypeSchema,
+} from "./common.js";
+import { setupInputSchema } from "./entities.js";
 
-export const profileSetupInputSchema = z.object({
-  displayName: z.string().trim().min(1).max(50)
+export const updateSettingsCommandSchema = z.object({
+  displayName: nonEmptyTrimmedStringSchema,
+  avatarUrl: optionalUrlSchema,
+  serverUrl: z.string().trim().url(),
+  serverAccessPassword: nonEmptyTrimmedStringSchema,
 });
 
-export const createProjectInputSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(200).default(""),
-  status: projectStatusSchema.default("active")
+export const createProjectCommandSchema = z.object({
+  name: nonEmptyTrimmedStringSchema,
 });
 
-export const listProjectsInputSchema = z.object({
-  status: z.union([projectStatusSchema, z.literal("all")]).default("all")
+export const joinProjectCommandSchema = z.object({
+  inviteCode: nonEmptyTrimmedStringSchema,
 });
 
-export const listTimelineInputSchema = z.object({
+export const createChatChannelCommandSchema = z.object({
   projectId: ulidSchema,
-  limit: z.number().int().min(1).max(200).default(100),
-  beforeCreatedAt: epochMsSchema.optional(),
-  filter: timelineFilterSchema.default("all")
+  name: nonEmptyTrimmedStringSchema,
 });
 
-export const postMessageInputSchema = z.object({
+export const renameChatChannelCommandSchema = z.object({
   projectId: ulidSchema,
-  body: z.string().trim().min(1)
+  chatChannelId: ulidSchema,
+  name: nonEmptyTrimmedStringSchema,
 });
 
-export const recordDecisionInputSchema = z.object({
+export const postMessageCommandSchema = z.object({
   projectId: ulidSchema,
-  summary: z.string().trim().min(1).max(200),
-  note: z.string().max(2000).default("")
+  chatChannelId: ulidSchema,
+  body: nonEmptyTrimmedStringSchema,
 });
 
-export const createTaskInputSchema = z.object({
+export const recordDecisionCommandSchema = z.object({
   projectId: ulidSchema,
-  title: z.string().trim().min(1).max(200),
-  assigneeUserId: ulidSchema.nullable()
+  chatChannelId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
+  body: nonEmptyTrimmedStringSchema,
 });
 
-export const completeTaskInputSchema = z.object({
+export const createTaskCommandSchema = z.object({
   projectId: ulidSchema,
-  taskId: ulidSchema
+  chatChannelId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
 });
 
-export const reopenTaskInputSchema = z.object({
+export const updateTaskStatusCommandSchema = z.object({
   projectId: ulidSchema,
-  taskId: ulidSchema
+  taskId: ulidSchema,
+  completed: z.boolean(),
 });
 
-export const markReadInputSchema = z.object({
+export const createDocCommandSchema = z.object({
   projectId: ulidSchema,
-  lastReadSeq: z.number().int().nonnegative()
+  title: nonEmptyTrimmedStringSchema,
+  markdown: z.string().default(""),
 });
 
-export const createInviteInputSchema = z.object({
+export const renameDocCommandSchema = z.object({
   projectId: ulidSchema,
-  expiresInDays: z.number().int().min(1).max(30).default(7)
+  docId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
 });
 
-export const joinInviteInputSchema = z.object({
-  code: z.string().trim().min(5).max(64)
+export const updateDocCommandSchema = z.object({
+  projectId: ulidSchema,
+  docId: ulidSchema,
+  markdown: z.string(),
 });
+
+export const addDocCommentCommandSchema = z.object({
+  projectId: ulidSchema,
+  docId: ulidSchema,
+  body: nonEmptyTrimmedStringSchema,
+  anchor: z.string().nullable(),
+});
+
+export const timelineFilterSchema = z.object({
+  projectId: ulidSchema,
+  workspaceType: workspaceItemTypeSchema,
+  workspaceItemId: ulidSchema,
+});
+
+export const setupCommandSchema = setupInputSchema;
+
+export type SetupCommand = z.infer<typeof setupCommandSchema>;
+export type UpdateSettingsCommand = z.infer<typeof updateSettingsCommandSchema>;
+export type CreateProjectCommand = z.infer<typeof createProjectCommandSchema>;
+export type JoinProjectCommand = z.infer<typeof joinProjectCommandSchema>;
+export type CreateChatChannelCommand = z.infer<typeof createChatChannelCommandSchema>;
+export type RenameChatChannelCommand = z.infer<typeof renameChatChannelCommandSchema>;
+export type PostMessageCommand = z.infer<typeof postMessageCommandSchema>;
+export type RecordDecisionCommand = z.infer<typeof recordDecisionCommandSchema>;
+export type CreateTaskCommand = z.infer<typeof createTaskCommandSchema>;
+export type UpdateTaskStatusCommand = z.infer<typeof updateTaskStatusCommandSchema>;
+export type CreateDocCommand = z.infer<typeof createDocCommandSchema>;
+export type RenameDocCommand = z.infer<typeof renameDocCommandSchema>;
+export type UpdateDocCommand = z.infer<typeof updateDocCommandSchema>;
+export type AddDocCommentCommand = z.infer<typeof addDocCommentCommandSchema>;
+export type TimelineFilter = z.infer<typeof timelineFilterSchema>;

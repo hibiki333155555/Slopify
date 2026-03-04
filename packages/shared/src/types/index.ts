@@ -1,103 +1,81 @@
-import type { z } from "zod";
-import {
-  completeTaskInputSchema,
-  createInviteInputSchema,
-  createProjectInputSchema,
-  createTaskInputSchema,
-  joinInviteInputSchema,
-  listTimelineInputSchema,
-  markReadInputSchema,
-  postMessageInputSchema,
-  profileSetupInputSchema,
-  recordDecisionInputSchema,
-  reopenTaskInputSchema
+import type {
+  AddDocCommentCommand,
+  CreateChatChannelCommand,
+  CreateDocCommand,
+  CreateProjectCommand,
+  CreateTaskCommand,
+  JoinProjectCommand,
+  PostMessageCommand,
+  RecordDecisionCommand,
+  RenameChatChannelCommand,
+  RenameDocCommand,
+  SetupCommand,
+  TimelineFilter,
+  UpdateDocCommand,
+  UpdateSettingsCommand,
+  UpdateTaskStatusCommand,
 } from "../schema/commands.js";
-import {
-  composerModeSchema,
-  decisionProjectionSchema,
-  inviteInfoSchema,
-  joinInviteResultSchema,
-  profileSchema,
-  projectListItemSchema,
-  projectMemberSchema,
-  projectSchema,
-  roomSummarySchema,
-  syncConnectionStateSchema,
-  syncUpdatePayloadSchema,
-  taskProjectionSchema,
-  timelineFilterSchema,
-  timelinePageSchema
+import type {
+  Bootstrap,
+  ChatChannel,
+  Doc,
+  DocComment,
+  Member,
+  ProjectSummary,
+  Settings,
+  TimelineEvent,
+  WorkspaceState,
 } from "../schema/entities.js";
-import {
-  clientSyncEventSchema,
-  localTimelineEventSchema,
-  serverSyncEventSchema,
-  syncAckSchema
-} from "../schema/events.js";
-import type { EventPayloadByType, EventType } from "../schema/events.js";
 
-export type EventPayloadMap = EventPayloadByType;
-export type Project = z.infer<typeof projectSchema>;
-export type ProjectMember = z.infer<typeof projectMemberSchema>;
-export type Profile = z.infer<typeof profileSchema>;
-export type ProjectListItem = z.infer<typeof projectListItemSchema>;
-export type DecisionProjection = z.infer<typeof decisionProjectionSchema>;
-export type TaskProjection = z.infer<typeof taskProjectionSchema>;
-export type RoomSummary = z.infer<typeof roomSummarySchema>;
-export type TimelineFilter = z.infer<typeof timelineFilterSchema>;
-export type ComposerMode = z.infer<typeof composerModeSchema>;
-export type TimelinePage = z.infer<typeof timelinePageSchema>;
-export type LocalTimelineEvent = z.infer<typeof localTimelineEventSchema>;
-export type ClientSyncEvent = z.infer<typeof clientSyncEventSchema>;
-export type ServerSyncEvent = z.infer<typeof serverSyncEventSchema>;
-export type SyncAck = z.infer<typeof syncAckSchema>;
-export type SyncConnectionState = z.infer<typeof syncConnectionStateSchema>;
-export type SyncUpdatePayload = z.infer<typeof syncUpdatePayloadSchema>;
-export type InviteInfo = z.infer<typeof inviteInfoSchema>;
-export type JoinInviteResult = z.infer<typeof joinInviteResultSchema>;
+export type SyncStatus = {
+  pendingCount: number;
+  lastPulledAt: number | null;
+  connected: boolean;
+  authed: boolean;
+  subscribed: boolean;
+  lastPulledSeq: number;
+  lastError: string | null;
+};
 
-export type ProfileSetupInput = z.infer<typeof profileSetupInputSchema>;
-export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
-export type ListTimelineInput = z.infer<typeof listTimelineInputSchema>;
-export type PostMessageInput = z.infer<typeof postMessageInputSchema>;
-export type RecordDecisionInput = z.infer<typeof recordDecisionInputSchema>;
-export type CreateTaskInput = z.infer<typeof createTaskInputSchema>;
-export type CompleteTaskInput = z.infer<typeof completeTaskInputSchema>;
-export type ReopenTaskInput = z.infer<typeof reopenTaskInputSchema>;
-export type MarkReadInput = z.infer<typeof markReadInputSchema>;
-export type CreateInviteInput = z.infer<typeof createInviteInputSchema>;
-export type JoinInviteInput = z.infer<typeof joinInviteInputSchema>;
+export type OpenWorkspaceResult = {
+  workspace: WorkspaceState;
+  timeline: TimelineEvent[];
+  docsComments: Record<string, DocComment[]>;
+};
 
 export interface DesktopApi {
-  profile: {
-    get: () => Promise<Profile | null>;
-    setup: (input: ProfileSetupInput) => Promise<Profile>;
-  };
-  projects: {
-    list: (status?: Project["status"] | "all") => Promise<ProjectListItem[]>;
-    create: (input: CreateProjectInput) => Promise<Project>;
-    roomSummary: (projectId: string) => Promise<RoomSummary>;
-    openTasks: (projectId: string) => Promise<TaskProjection[]>;
-  };
-  timeline: {
-    list: (input: ListTimelineInput) => Promise<TimelinePage>;
-    postMessage: (input: PostMessageInput) => Promise<LocalTimelineEvent>;
-    recordDecision: (input: RecordDecisionInput) => Promise<LocalTimelineEvent>;
-    createTask: (input: CreateTaskInput) => Promise<LocalTimelineEvent>;
-    completeTask: (input: CompleteTaskInput) => Promise<LocalTimelineEvent>;
-    reopenTask: (input: ReopenTaskInput) => Promise<LocalTimelineEvent>;
-    markRead: (input: MarkReadInput) => Promise<void>;
-  };
-  invite: {
-    create: (input: CreateInviteInput) => Promise<InviteInfo>;
-    join: (input: JoinInviteInput) => Promise<JoinInviteResult>;
-  };
-  sync: {
-    connect: () => Promise<SyncConnectionState>;
-    disconnect: () => Promise<SyncConnectionState>;
-    status: () => Promise<SyncConnectionState>;
-    onUpdated: (listener: (payload: SyncUpdatePayload) => void) => () => void;
-  };
-}
+  bootstrap(): Promise<Bootstrap>;
+  completeSetup(input: SetupCommand): Promise<Bootstrap>;
+  updateSettings(input: UpdateSettingsCommand): Promise<Settings>;
+  clearConnection(): Promise<void>;
 
-export type { EventType };
+  listProjects(): Promise<ProjectSummary[]>;
+  createProject(input: CreateProjectCommand): Promise<ProjectSummary>;
+  joinProject(input: JoinProjectCommand): Promise<ProjectSummary>;
+  createInvite(projectId: string): Promise<{ inviteCode: string }>;
+
+  openWorkspace(projectId: string): Promise<OpenWorkspaceResult>;
+  listMembers(projectId: string): Promise<Member[]>;
+  listChannels(projectId: string): Promise<ChatChannel[]>;
+  createChannel(input: CreateChatChannelCommand): Promise<ChatChannel>;
+  renameChannel(input: RenameChatChannelCommand): Promise<ChatChannel>;
+
+  listTimeline(filter: TimelineFilter): Promise<TimelineEvent[]>;
+  postMessage(input: PostMessageCommand): Promise<void>;
+  recordDecision(input: RecordDecisionCommand): Promise<void>;
+  createTask(input: CreateTaskCommand): Promise<void>;
+  setTaskStatus(input: UpdateTaskStatusCommand): Promise<void>;
+
+  listDocs(projectId: string): Promise<Doc[]>;
+  createDoc(input: CreateDocCommand): Promise<Doc>;
+  renameDoc(input: RenameDocCommand): Promise<Doc>;
+  updateDoc(input: UpdateDocCommand): Promise<Doc>;
+  listDocComments(projectId: string, docId: string): Promise<DocComment[]>;
+  addDocComment(input: AddDocCommentCommand): Promise<DocComment>;
+
+  getSyncStatus(): Promise<SyncStatus>;
+  syncNow(): Promise<void>;
+
+  onSyncStatus(listener: (status: SyncStatus) => void): () => void;
+  onWorkspaceChanged(listener: (projectId: string) => void): () => void;
+}

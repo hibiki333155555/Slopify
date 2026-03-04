@@ -1,66 +1,124 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const connectionString = process.env.SYNC_DATABASE_URL ?? "postgres://localhost:5432/slopify_sync";
+export type ServerConfig = {
+  port: number;
+  databaseUrl: string;
+  serverAccessPassword: string;
+};
 
-export const pool = new Pool({ connectionString });
+const readConfig = (): ServerConfig => {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl === undefined || databaseUrl.length === 0) {
+    throw new Error("DATABASE_URL is required");
+  }
 
-export async function initializeDatabase(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL CHECK (status IN ('active','paused','done','archived')),
-      owner_user_id TEXT NOT NULL,
-      created_at BIGINT NOT NULL,
-      updated_at BIGINT NOT NULL,
-      archived_at BIGINT
-    );
-  `);
+  return {
+    port: Number(process.env.PORT ?? "4000"),
+    databaseUrl,
+    serverAccessPassword: process.env.SERVER_ACCESS_PASSWORD ?? "change-me",
+  };
+};
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS project_members (
-      project_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('owner','member')),
-      joined_at BIGINT NOT NULL,
-      left_at BIGINT,
-      PRIMARY KEY (project_id, user_id)
-    );
-  `);
+const bootstrapSql = `
+CREATE TABLE IF NOT EXISTS users (
+  user_id TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL,
+  avatar_url TEXT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS events (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      seq BIGINT NOT NULL,
-      actor_user_id TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      entity_id TEXT,
-      payload_json TEXT NOT NULL,
-      created_at BIGINT NOT NULL,
-      server_created_at BIGINT NOT NULL
-    );
-  `);
+CREATE TABLE IF NOT EXISTS projects (
+  project_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
 
-  await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_events_project_seq ON events(project_id, seq);
-  `);
+CREATE TABLE IF NOT EXISTS project_members (
+  project_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  joined_at BIGINT NOT NULL,
+  PRIMARY KEY (project_id, user_id)
+);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS project_sequences (
-      project_id TEXT PRIMARY KEY,
-      last_seq BIGINT NOT NULL
-    );
-  `);
+CREATE TABLE IF NOT EXISTS chat_channels (
+  chat_channel_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS invites (
-      code TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      created_by_user_id TEXT NOT NULL,
-      expires_at BIGINT NOT NULL,
-      created_at BIGINT NOT NULL
-    );
-  `);
-}
+CREATE TABLE IF NOT EXISTS docs (
+  doc_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  markdown TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS doc_comments (
+  comment_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  author_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  anchor TEXT,
+  created_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  task_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  chat_channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  completed BOOLEAN NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS decisions (
+  decision_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  chat_channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  actor_user_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  payload_json JSONB NOT NULL,
+  chat_channel_id TEXT,
+  doc_id TEXT,
+  created_at BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_project_created_at ON events(project_id, created_at);
+
+CREATE TABLE IF NOT EXISTS invites (
+  invite_code TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  created_by_user_id TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+`;
+
+export const createServerDb = async (): Promise<{
+  db: ReturnType<typeof drizzle>;
+  pool: Pool;
+  config: ServerConfig;
+}> => {
+  const config = readConfig();
+  const pool = new Pool({ connectionString: config.databaseUrl });
+  await pool.query(bootstrapSql);
+  const db = drizzle(pool);
+  return { db, pool, config };
+};

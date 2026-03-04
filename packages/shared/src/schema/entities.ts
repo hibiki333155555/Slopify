@@ -1,102 +1,145 @@
 import { z } from "zod";
-import { epochMsSchema, memberRoleSchema, projectStatusSchema, taskStatusSchema, ulidSchema } from "./common.js";
-import { localTimelineEventSchema } from "./events.js";
+import {
+  nonEmptyTrimmedStringSchema,
+  optionalUrlSchema,
+  serverUrlSchema,
+  ulidSchema,
+  unixMsSchema,
+  workspaceItemTypeSchema,
+} from "./common.js";
+import { eventSchema, eventTypeSchema } from "./events.js";
 
-export const profileSchema = z.object({
+export const userProfileSchema = z.object({
   userId: ulidSchema,
-  deviceId: ulidSchema,
-  displayName: z.string().trim().min(1).max(50),
-  createdAt: epochMsSchema,
-  updatedAt: epochMsSchema
+  displayName: nonEmptyTrimmedStringSchema,
+  avatarUrl: z.string().nullable(),
+  createdAt: unixMsSchema,
 });
 
-export const userSchema = z.object({
-  id: ulidSchema,
-  displayName: z.string().trim().min(1).max(50),
-  createdAt: epochMsSchema,
-  updatedAt: epochMsSchema
+export const setupInputSchema = z.object({
+  displayName: nonEmptyTrimmedStringSchema,
+  avatarUrl: optionalUrlSchema,
+  serverUrl: serverUrlSchema,
+  serverAccessPassword: nonEmptyTrimmedStringSchema,
 });
 
-export const projectSchema = z.object({
-  id: ulidSchema,
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(200),
-  status: projectStatusSchema,
-  ownerUserId: ulidSchema,
-  createdAt: epochMsSchema,
-  updatedAt: epochMsSchema,
-  archivedAt: epochMsSchema.nullable()
+export const connectionConfigSchema = z.object({
+  serverUrl: serverUrlSchema,
+  serverAccessPassword: nonEmptyTrimmedStringSchema,
 });
 
-export const projectMemberSchema = z.object({
+export const settingsSchema = z.object({
+  displayName: nonEmptyTrimmedStringSchema,
+  avatarUrl: z.string().nullable(),
+  serverUrl: serverUrlSchema,
+});
+
+export const memberSchema = z.object({
   projectId: ulidSchema,
   userId: ulidSchema,
-  role: memberRoleSchema,
-  joinedAt: epochMsSchema,
-  leftAt: epochMsSchema.nullable(),
-  displayName: z.string().trim().min(1).max(50)
+  displayName: nonEmptyTrimmedStringSchema,
+  avatarUrl: z.string().nullable(),
+  joinedAt: unixMsSchema,
 });
 
-export const decisionProjectionSchema = z.object({
+export const projectSummarySchema = z.object({
+  projectId: ulidSchema,
+  name: nonEmptyTrimmedStringSchema,
+  createdAt: unixMsSchema,
+  updatedAt: unixMsSchema,
+  memberCount: z.number().int().nonnegative(),
+  lastActivityAt: unixMsSchema,
+});
+
+export const chatChannelSchema = z.object({
+  chatChannelId: ulidSchema,
+  projectId: ulidSchema,
+  name: nonEmptyTrimmedStringSchema,
+  createdAt: unixMsSchema,
+  updatedAt: unixMsSchema,
+});
+
+export const taskSchema = z.object({
+  taskId: ulidSchema,
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
+  completed: z.boolean(),
+  createdAt: unixMsSchema,
+  updatedAt: unixMsSchema,
+});
+
+export const decisionSchema = z.object({
+  decisionId: ulidSchema,
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
+  body: nonEmptyTrimmedStringSchema,
+  createdAt: unixMsSchema,
+  updatedAt: unixMsSchema,
+});
+
+export const docSchema = z.object({
+  docId: ulidSchema,
+  projectId: ulidSchema,
+  title: nonEmptyTrimmedStringSchema,
+  markdown: z.string(),
+  createdAt: unixMsSchema,
+  updatedAt: unixMsSchema,
+});
+
+export const docCommentSchema = z.object({
+  commentId: ulidSchema,
+  projectId: ulidSchema,
+  docId: ulidSchema,
+  authorUserId: ulidSchema,
+  body: nonEmptyTrimmedStringSchema,
+  anchor: z.string().nullable(),
+  createdAt: unixMsSchema,
+});
+
+export const timelineEventSchema = z.object({
   id: ulidSchema,
   projectId: ulidSchema,
-  summary: z.string().trim().min(1).max(200),
-  note: z.string().max(2000),
-  createdEventId: ulidSchema,
-  createdByUserId: ulidSchema,
-  createdAt: epochMsSchema
+  actorUserId: ulidSchema,
+  type: eventTypeSchema,
+  payload: z.record(z.string(), z.unknown()),
+  chatChannelId: ulidSchema.nullable(),
+  docId: ulidSchema.nullable(),
+  createdAt: unixMsSchema,
+  actorDisplayName: nonEmptyTrimmedStringSchema,
+  actorAvatarUrl: z.string().nullable(),
+  timelineText: nonEmptyTrimmedStringSchema,
 });
 
-export const taskProjectionSchema = z.object({
-  id: ulidSchema,
-  projectId: ulidSchema,
-  title: z.string().trim().min(1).max(200),
-  assigneeUserId: ulidSchema.nullable(),
-  status: taskStatusSchema,
-  createdEventId: ulidSchema,
-  createdByUserId: ulidSchema,
-  createdAt: epochMsSchema,
-  completedAt: epochMsSchema.nullable(),
-  completedByUserId: ulidSchema.nullable()
+export const workspaceStateSchema = z.object({
+  project: projectSummarySchema,
+  members: z.array(memberSchema),
+  channels: z.array(chatChannelSchema),
+  tasks: z.array(taskSchema),
+  decisions: z.array(decisionSchema),
+  docs: z.array(docSchema),
+  selectedWorkspaceType: workspaceItemTypeSchema,
+  selectedWorkspaceItemId: ulidSchema,
 });
 
-export const timelineFilterSchema = z.enum(["all", "message", "decision", "task", "openTasks"]);
-export const composerModeSchema = z.enum(["message", "decision", "task"]);
-
-export const projectListItemSchema = projectSchema.extend({
-  unreadCount: z.number().int().nonnegative(),
-  openTaskCount: z.number().int().nonnegative(),
-  onlineCount: z.number().int().nonnegative(),
-  lastUpdatedAt: epochMsSchema
+export const bootstrapSchema = z.object({
+  hasCompletedSetup: z.boolean(),
+  me: userProfileSchema.nullable(),
+  settings: settingsSchema.nullable(),
 });
 
-export const roomSummarySchema = z.object({
-  project: projectSchema,
-  members: z.array(projectMemberSchema),
-  latestDecisions: z.array(decisionProjectionSchema).max(3),
-  openTaskCount: z.number().int().nonnegative(),
-  onlineCount: z.number().int().nonnegative()
-});
-
-export const timelinePageSchema = z.object({
-  events: z.array(localTimelineEventSchema),
-  nextBeforeCreatedAt: epochMsSchema.nullable()
-});
-
-export const syncConnectionStateSchema = z.object({
-  connected: z.boolean(),
-  serverUrl: z.string().url()
-});
-
-export const syncUpdatePayloadSchema = z.object({
-  projectId: ulidSchema
-});
-
-export const inviteInfoSchema = z.object({
-  code: z.string().min(5).max(64),
-  expiresAt: epochMsSchema
-});
-
-export const joinInviteResultSchema = z.object({
-  projectId: ulidSchema
-});
+export type UserProfile = z.infer<typeof userProfileSchema>;
+export type SetupInput = z.infer<typeof setupInputSchema>;
+export type ConnectionConfig = z.infer<typeof connectionConfigSchema>;
+export type Settings = z.infer<typeof settingsSchema>;
+export type ProjectSummary = z.infer<typeof projectSummarySchema>;
+export type Member = z.infer<typeof memberSchema>;
+export type ChatChannel = z.infer<typeof chatChannelSchema>;
+export type Task = z.infer<typeof taskSchema>;
+export type Decision = z.infer<typeof decisionSchema>;
+export type Doc = z.infer<typeof docSchema>;
+export type DocComment = z.infer<typeof docCommentSchema>;
+export type TimelineEvent = z.infer<typeof timelineEventSchema>;
+export type WorkspaceState = z.infer<typeof workspaceStateSchema>;
+export type Bootstrap = z.infer<typeof bootstrapSchema>;

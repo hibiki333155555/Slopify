@@ -1,12 +1,18 @@
 import { z } from "zod";
 
-export const ulidSchema = z
+export const ulidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+
+export const unixMsSchema = z.number().int().nonnegative();
+
+export const nonEmptyTrimmedStringSchema = z.string().trim().min(1);
+
+export const optionalUrlSchema = z
   .string()
-  .regex(/^[0-9A-HJKMNP-TV-Z]{26}$/, "ULID must be a 26-char Crockford base32 value");
+  .trim()
+  .url()
+  .or(z.literal(""))
+  .transform((value) => (value.length > 0 ? value : null));
 
-export const epochMsSchema = z.number().int().nonnegative();
+export const serverUrlSchema = z.string().trim().url();
 
-export const projectStatusSchema = z.enum(["active", "paused", "done", "archived"]);
-export const memberRoleSchema = z.enum(["owner", "member"]);
-export const taskStatusSchema = z.enum(["open", "done"]);
-export const syncStatusSchema = z.enum(["pending", "synced", "failed"]);
+export const workspaceItemTypeSchema = z.enum(["chat", "doc"]);

@@ -1,152 +1,253 @@
 import { io, type Socket } from "socket.io-client";
-import {
-  serverSyncEventSchema,
-  syncAckSchema,
-  syncConnectionStateSchema,
-  syncUpdatePayloadSchema,
-  type ClientSyncEvent,
-  type ServerSyncEvent,
-  type SyncAck,
-  type SyncConnectionState,
-  type SyncUpdatePayload
-} from "@slopify/shared";
-import { LocalRepository } from "./repository.js";
+import type { EventRecord, Settings } from "@slopify/shared";
 
-type ClientToServerEvents = {
-  "sync:joinProjects": (payload: { projectIds: string[] }) => void;
-  "sync:pull": (payload: { projectId: string; lastPulledSeq: number }) => void;
-  "sync:pushEvents": (payload: { events: ClientSyncEvent[] }) => void;
+export type SyncClientOptions = {
+  onRemoteEvents: (events: EventRecord[]) => Promise<void>;
+  onProjectHint: (projectId: string) => Promise<void>;
+  onConnectionChanged: (connected: boolean) => void;
 };
 
-type ServerToClientEvents = {
-  "sync:ack": (payload: { acks: SyncAck[] }) => void;
-  "sync:events": (payload: { projectId: string; events: ServerSyncEvent[] }) => void;
-  "presence:update": (payload: { projectId: string; onlineCount: number }) => void;
+export type SyncIdentity = {
+  userId: string;
+  settings: Settings;
+  serverAccessPassword: string;
 };
 
-export class DesktopSyncClient {
-  private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
-  private connected = false;
-  private serverUrl = "http://127.0.0.1:4000";
-  private readonly onlineCountByProject = new Map<string, number>();
+const emitWithAck = <T>(
+  socket: Socket,
+  eventName: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${eventName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
 
-  public constructor(
-    private readonly repository: LocalRepository,
-    private readonly onProjectUpdated: (payload: SyncUpdatePayload) => void
-  ) {}
-
-  public connect(): SyncConnectionState {
-    const config = this.repository.getSyncConfig();
-    if (!config) {
-      return syncConnectionStateSchema.parse({
-        connected: false,
-        serverUrl: this.serverUrl
-      });
-    }
-
-    this.serverUrl = config.serverUrl;
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
-
-    const socket = io(config.serverUrl, {
-      autoConnect: false,
-      transports: ["websocket"],
-      auth: {
-        userId: config.userId,
-        deviceId: config.deviceId
+    socket.timeout(timeoutMs).emit(eventName, payload, (error: Error | null, response?: T) => {
+      clearTimeout(timer);
+      if (error !== null) {
+        reject(error);
+        return;
       }
+      if (response === undefined) {
+        reject(new Error(`${eventName} returned no response`));
+        return;
+      }
+      resolve(response);
     });
-    this.socket = socket;
-    this.bindSocket(socket);
-    socket.connect();
-    return this.status();
-  }
+  });
 
-  public disconnect(): SyncConnectionState {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
-    this.connected = false;
-    return this.status();
-  }
+export class SyncClient {
+  private socket: Socket | null = null;
 
-  public status(): SyncConnectionState {
-    return syncConnectionStateSchema.parse({
-      connected: this.connected,
-      serverUrl: this.serverUrl
-    });
-  }
+  private connectInFlight: Promise<boolean> | null = null;
 
-  public getOnlineCount(projectId: string): number {
-    return this.onlineCountByProject.get(projectId) ?? 0;
-  }
+  private identityFingerprint: string | null = null;
 
-  public flushPendingEvents(): void {
-    if (!this.socket || !this.connected) {
+  public constructor(private readonly options: SyncClientOptions) {}
+
+  public connect(identity: SyncIdentity): void {
+    const fingerprint = this.fingerprint(identity);
+
+    if (this.socket !== null && this.identityFingerprint === fingerprint) {
+      if (!this.socket.connected) {
+        this.socket.connect();
+      }
       return;
     }
-    const pending = this.repository.getPendingSyncEvents(500);
-    if (pending.length === 0) {
-      return;
-    }
-    this.socket.emit("sync:pushEvents", { events: pending });
-  }
 
-  public refreshProjectSubscriptions(): void {
-    this.joinAndPull();
-  }
+    this.disconnect();
+    this.identityFingerprint = fingerprint;
 
-  private bindSocket(socket: Socket<ServerToClientEvents, ClientToServerEvents>): void {
+    const socket = io(identity.settings.serverUrl, {
+      transports: ["websocket"],
+      autoConnect: false,
+      reconnection: true,
+      reconnectionDelay: 300,
+      reconnectionDelayMax: 3000,
+      auth: {
+        userId: identity.userId,
+        displayName: identity.settings.displayName,
+        avatarUrl: identity.settings.avatarUrl,
+        serverAccessPassword: identity.serverAccessPassword,
+      },
+      timeout: 5000,
+    });
+
     socket.on("connect", () => {
-      this.connected = true;
-      this.joinAndPull();
-      this.flushPendingEvents();
+      this.options.onConnectionChanged(true);
+      this.connectInFlight = null;
     });
 
     socket.on("disconnect", () => {
-      this.connected = false;
+      this.options.onConnectionChanged(false);
+      this.connectInFlight = null;
     });
 
-    socket.on("sync:ack", (payload) => {
-      const acks = payload.acks.map((ack) => syncAckSchema.parse(ack));
-      this.repository.markAckedEvents(acks);
-      for (const ack of acks) {
-        this.onProjectUpdated(syncUpdatePayloadSchema.parse({ projectId: ack.projectId }));
-      }
+    socket.on("connect_error", () => {
+      this.options.onConnectionChanged(false);
+      this.connectInFlight = null;
     });
 
-    socket.on("sync:events", (payload) => {
-      const events = payload.events.map((event) => serverSyncEventSchema.parse(event));
-      const touched = this.repository.applyRemoteEvents(events);
-      for (const projectId of touched) {
-        this.onProjectUpdated(syncUpdatePayloadSchema.parse({ projectId }));
-      }
+    socket.on("sync:event", async (payload: { projectId: string }) => {
+      await this.options.onProjectHint(payload.projectId);
     });
 
-    socket.on("presence:update", (payload) => {
-      this.onlineCountByProject.set(payload.projectId, payload.onlineCount);
-      this.onProjectUpdated(syncUpdatePayloadSchema.parse({ projectId: payload.projectId }));
+    socket.on("sync:events", async (payload: { events: EventRecord[] }) => {
+      await this.options.onRemoteEvents(payload.events);
     });
+
+    this.socket = socket;
+    this.socket.connect();
   }
 
-  private joinAndPull(): void {
-    if (!this.socket || !this.connected) {
-      return;
-    }
-    const projectIds = this.repository.listProjectIds();
-    if (projectIds.length === 0) {
-      return;
+  public disconnect(): void {
+    this.connectInFlight = null;
+    this.identityFingerprint = null;
+
+    if (this.socket !== null) {
+      this.socket.removeAllListeners();
+      this.socket.close();
+      this.socket = null;
     }
 
-    this.socket.emit("sync:joinProjects", { projectIds });
-    for (const projectId of projectIds) {
-      this.socket.emit("sync:pull", {
-        projectId,
-        lastPulledSeq: this.repository.getLastPulledSeq(projectId)
-      });
+    this.options.onConnectionChanged(false);
+  }
+
+  public resetInFlight(): void {
+    this.connectInFlight = null;
+  }
+
+  public get connected(): boolean {
+    return this.socket?.connected === true;
+  }
+
+  public async ensureConnected(timeoutMs: number): Promise<boolean> {
+    if (this.socket === null) {
+      return false;
     }
+
+    if (this.socket.connected) {
+      return true;
+    }
+
+    if (this.connectInFlight !== null) {
+      return await this.connectInFlight;
+    }
+
+    this.connectInFlight = new Promise<boolean>((resolve) => {
+      if (this.socket === null) {
+        resolve(false);
+        return;
+      }
+
+      let settled = false;
+
+      const cleanup = (): void => {
+        if (this.socket === null) {
+          return;
+        }
+        this.socket.off("connect", onConnect);
+        this.socket.off("connect_error", onError);
+      };
+
+      const settle = (value: boolean): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        cleanup();
+        resolve(value);
+      };
+
+      const onConnect = (): void => {
+        settle(true);
+      };
+
+      const onError = (): void => {
+        settle(false);
+      };
+
+      const timer = setTimeout(() => {
+        settle(false);
+      }, timeoutMs);
+
+      this.socket.on("connect", onConnect);
+      this.socket.on("connect_error", onError);
+
+      if (!this.socket.connected) {
+        this.socket.connect();
+      }
+    }).finally(() => {
+      this.connectInFlight = null;
+    });
+
+    return await this.connectInFlight;
+  }
+
+  public async pull(input: {
+    projectIds: string[];
+    since: number;
+    serverAccessPassword: string;
+  }): Promise<EventRecord[]> {
+    if (this.socket === null) {
+      return [];
+    }
+
+    const connected = await this.ensureConnected(5000);
+    if (!connected || this.socket === null) {
+      return [];
+    }
+
+    const response = await emitWithAck<{ events: EventRecord[] }>(
+      this.socket,
+      "sync:pull",
+      {
+        projectIds: input.projectIds,
+        since: input.since,
+        serverAccessPassword: input.serverAccessPassword,
+      },
+      10000,
+    );
+
+    return response.events;
+  }
+
+  public async push(input: {
+    events: EventRecord[];
+    serverAccessPassword: string;
+  }): Promise<string[]> {
+    if (this.socket === null || input.events.length === 0) {
+      return [];
+    }
+
+    const connected = await this.ensureConnected(5000);
+    if (!connected || this.socket === null) {
+      return [];
+    }
+
+    const response = await emitWithAck<{ acceptedIds: string[] }>(
+      this.socket,
+      "sync:push",
+      {
+        events: input.events,
+        serverAccessPassword: input.serverAccessPassword,
+      },
+      10000,
+    );
+
+    return response.acceptedIds;
+  }
+
+  private fingerprint(identity: SyncIdentity): string {
+    return [
+      identity.userId,
+      identity.settings.displayName,
+      identity.settings.avatarUrl ?? "",
+      identity.settings.serverUrl,
+      identity.serverAccessPassword,
+    ].join("|");
   }
 }

@@ -1,405 +1,349 @@
-import {
-  type ClientSyncEvent,
-  type EventType,
-  type ProjectMember,
-  type ServerSyncEvent,
-  parsePayloadForEventType,
-  projectSchema,
-  serverSyncEventSchema
-} from "@slopify/shared";
 import { ulid } from "ulid";
-import type { Pool, PoolClient } from "pg";
+import { eventPayloadSchema, eventSchema, type EventRecord } from "@slopify/shared";
+import type { Pool } from "pg";
 
-type EventRow = {
+export type ServerUser = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+type DbEventRow = {
   id: string;
   project_id: string;
-  seq: string | number;
   actor_user_id: string;
-  event_type: EventType;
-  entity_id: string | null;
-  payload_json: string;
+  type: string;
+  payload_json: unknown;
+  chat_channel_id: string | null;
+  doc_id: string | null;
   created_at: string | number;
-  server_created_at: string | number;
-};
-
-type ProjectRow = {
-  id: string;
-  name: string;
-  description: string;
-  status: "active" | "paused" | "done" | "archived";
-  owner_user_id: string;
-  created_at: string | number;
-  updated_at: string | number;
-  archived_at: string | number | null;
-};
-
-type MemberRow = {
-  project_id: string;
-  user_id: string;
-  role: "owner" | "member";
-  joined_at: string | number;
-  left_at: string | number | null;
-};
-
-export type JoinByInviteResult = {
-  project: ReturnType<typeof projectSchema.parse>;
-  members: ProjectMember[];
-  events: ServerSyncEvent[];
 };
 
 export class SyncRepository {
   public constructor(private readonly pool: Pool) {}
 
-  public async isMember(projectId: string, userId: string): Promise<boolean> {
-    const result = await this.pool.query<{ exists: boolean }>(
-      "SELECT EXISTS(SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 AND left_at IS NULL) AS exists",
-      [projectId, userId]
-    );
-    return result.rows[0]?.exists ?? false;
-  }
-
-  public async appendClientEvents(events: ClientSyncEvent[]): Promise<{
-    acks: Array<{ eventId: string; projectId: string; seq: number; serverCreatedAt: number }>;
-    insertedByProject: Map<string, ServerSyncEvent[]>;
-  }> {
-    const acks: Array<{ eventId: string; projectId: string; seq: number; serverCreatedAt: number }> = [];
-    const insertedByProject = new Map<string, ServerSyncEvent[]>();
-
-    for (const event of events) {
-      const client = await this.pool.connect();
-      try {
-        await client.query("BEGIN");
-        const serverEvent = await this.appendEventInTransaction(client, event);
-        await client.query("COMMIT");
-
-        acks.push({
-          eventId: serverEvent.id,
-          projectId: serverEvent.projectId,
-          seq: serverEvent.seq,
-          serverCreatedAt: serverEvent.serverCreatedAt
-        });
-
-        const existing = insertedByProject.get(serverEvent.projectId) ?? [];
-        existing.push(serverEvent);
-        insertedByProject.set(serverEvent.projectId, existing);
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
-    }
-
-    return { acks, insertedByProject };
-  }
-
-  public async pullEvents(projectId: string, sinceSeq: number, limit = 500): Promise<ServerSyncEvent[]> {
-    const client = await this.pool.connect();
-    try {
-      return this.pullEventsByClient(client, projectId, sinceSeq, limit);
-    } finally {
-      client.release();
-    }
-  }
-
-  private async pullEventsByClient(
-    client: PoolClient,
-    projectId: string,
-    sinceSeq: number,
-    limit: number
-  ): Promise<ServerSyncEvent[]> {
-    const result = await client.query<EventRow>(
-      `
-      SELECT id, project_id, seq, actor_user_id, event_type, entity_id, payload_json, created_at, server_created_at
-      FROM events
-      WHERE project_id = $1
-        AND seq > $2
-      ORDER BY seq ASC
-      LIMIT $3
-      `,
-      [projectId, sinceSeq, limit]
-    );
-
-    return result.rows.map((row) => this.rowToServerEvent(row));
-  }
-
-  public async createInvite(projectId: string, userId: string, expiresInDays = 7): Promise<{ code: string; expiresAt: number }> {
-    const code = ulid().slice(-10);
+  public async upsertUser(input: ServerUser): Promise<void> {
     const now = Date.now();
-    const expiresAt = now + expiresInDays * 24 * 60 * 60 * 1000;
-
     await this.pool.query(
       `
-      INSERT INTO invites (code, project_id, created_by_user_id, expires_at, created_at)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO users (user_id, display_name, avatar_url, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $4)
+      ON CONFLICT (user_id)
+      DO UPDATE SET display_name = EXCLUDED.display_name, avatar_url = EXCLUDED.avatar_url, updated_at = EXCLUDED.updated_at
       `,
-      [code, projectId, userId, expiresAt, now]
+      [input.userId, input.displayName, input.avatarUrl, now],
     );
-
-    return { code, expiresAt };
   }
 
-  public async joinByInvite(code: string, userId: string): Promise<JoinByInviteResult> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+  public async createInvite(projectId: string, createdByUserId: string): Promise<string> {
+    const code = ulid().slice(-10);
+    await this.pool.query(
+      `
+      INSERT INTO invites (invite_code, project_id, created_by_user_id, created_at)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (invite_code)
+      DO UPDATE SET project_id = EXCLUDED.project_id, created_by_user_id = EXCLUDED.created_by_user_id, created_at = EXCLUDED.created_at
+      `,
+      [code, projectId, createdByUserId, Date.now()],
+    );
+    return code;
+  }
 
-      const inviteResult = await client.query<{ project_id: string; expires_at: string | number }>(
-        "SELECT project_id, expires_at FROM invites WHERE code = $1",
-        [code]
-      );
-      const invite = inviteResult.rows[0];
-      if (!invite) {
-        throw new Error("Invite code not found");
-      }
-      if (Number(invite.expires_at) < Date.now()) {
-        throw new Error("Invite code has expired");
-      }
+  public async joinByInvite(input: {
+    inviteCode: string;
+    user: ServerUser;
+  }): Promise<{ projectId: string; events: EventRecord[] }> {
+    const inviteRes = await this.pool.query<{ project_id: string }>(
+      "SELECT project_id FROM invites WHERE invite_code = $1",
+      [input.inviteCode],
+    );
 
-      await client.query(
-        `
-        INSERT INTO project_members (project_id, user_id, role, joined_at, left_at)
-        VALUES ($1, $2, 'member', $3, NULL)
-        ON CONFLICT (project_id, user_id)
-        DO UPDATE SET left_at = NULL, joined_at = EXCLUDED.joined_at
-        `,
-        [invite.project_id, userId, Date.now()]
-      );
+    const projectId = inviteRes.rows[0]?.project_id;
+    if (projectId === undefined) {
+      throw new Error("Invite not found");
+    }
 
-      await this.appendEventInTransaction(client, {
+    await this.upsertUser(input.user);
+
+    const existingMember = await this.pool.query<{ project_id: string }>(
+      "SELECT project_id FROM project_members WHERE project_id = $1 AND user_id = $2",
+      [projectId, input.user.userId],
+    );
+
+    if (existingMember.rows.length === 0) {
+      const joinedAt = Date.now();
+      const memberEvent = eventSchema.parse({
         id: ulid(),
-        projectId: invite.project_id,
-        actorUserId: userId,
-        eventType: "member.joined",
-        entityId: userId,
+        projectId,
+        actorUserId: input.user.userId,
+        type: "member.joined",
         payload: {
-          userId,
-          role: "member"
+          memberUserId: input.user.userId,
+          memberDisplayName: input.user.displayName,
+          memberAvatarUrl: input.user.avatarUrl,
         },
-        createdAt: Date.now()
+        chatChannelId: null,
+        docId: null,
+        createdAt: joinedAt,
       });
 
-      const projectResult = await client.query<ProjectRow>(
-        `
-        SELECT id, name, description, status, owner_user_id, created_at, updated_at, archived_at
-        FROM projects
-        WHERE id = $1
-        `,
-        [invite.project_id]
-      );
-      const projectRow = projectResult.rows[0];
-      if (!projectRow) {
-        throw new Error("Project not found for invite");
-      }
-
-      const members = await this.listMembersByClient(client, invite.project_id);
-      const events = await this.pullEventsByClient(client, invite.project_id, 0, 10000);
-
-      await client.query("COMMIT");
-
-      const project = projectSchema.parse({
-        id: projectRow.id,
-        name: projectRow.name,
-        description: projectRow.description,
-        status: projectRow.status,
-        ownerUserId: projectRow.owner_user_id,
-        createdAt: Number(projectRow.created_at),
-        updatedAt: Number(projectRow.updated_at),
-        archivedAt: projectRow.archived_at === null ? null : Number(projectRow.archived_at)
-      });
-
-      return { project, members, events };
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+      await this.insertEvent(memberEvent);
+      await this.applyProjection(memberEvent);
     }
+
+    const events = await this.pullEvents([projectId], 0);
+    return { projectId, events };
   }
 
-  public async listMembers(projectId: string): Promise<ProjectMember[]> {
-    const client = await this.pool.connect();
-    try {
-      return this.listMembersByClient(client, projectId);
-    } finally {
-      client.release();
-    }
-  }
-
-  private async listMembersByClient(client: PoolClient, projectId: string): Promise<ProjectMember[]> {
-    const result = await client.query<MemberRow>(
-      `
-      SELECT project_id, user_id, role, joined_at, left_at
-      FROM project_members
-      WHERE project_id = $1
-      ORDER BY joined_at ASC
-      `,
-      [projectId]
+  public async listProjectIdsForUser(userId: string): Promise<string[]> {
+    const result = await this.pool.query<{ project_id: string }>(
+      "SELECT project_id FROM project_members WHERE user_id = $1",
+      [userId],
     );
-
-    return result.rows.map((row) => ({
-      projectId: row.project_id,
-      userId: row.user_id,
-      role: row.role,
-      joinedAt: Number(row.joined_at),
-      leftAt: row.left_at === null ? null : Number(row.left_at),
-      displayName: row.user_id
-    }));
+    return result.rows.map((row) => row.project_id);
   }
 
-  private async appendEventInTransaction(client: PoolClient, event: ClientSyncEvent): Promise<ServerSyncEvent> {
-    const existingResult = await client.query<EventRow>(
+  public async pullEvents(projectIds: string[], since: number): Promise<EventRecord[]> {
+    if (projectIds.length === 0) {
+      return [];
+    }
+
+    const params: unknown[] = [since, ...projectIds];
+    const projectPlaceholders = projectIds.map((_value, index) => `$${index + 2}`).join(", ");
+
+    const result = await this.pool.query<DbEventRow>(
       `
-      SELECT id, project_id, seq, actor_user_id, event_type, entity_id, payload_json, created_at, server_created_at
+      SELECT id, project_id, actor_user_id, type, payload_json, chat_channel_id, doc_id, created_at
       FROM events
-      WHERE id = $1
+      WHERE created_at > $1
+        AND project_id IN (${projectPlaceholders})
+      ORDER BY created_at ASC
       `,
-      [event.id]
+      params,
     );
 
-    const existing = existingResult.rows[0];
-    if (existing) {
-      return this.rowToServerEvent(existing);
+    return result.rows.map((row) =>
+      eventSchema.parse({
+        id: row.id,
+        projectId: row.project_id,
+        actorUserId: row.actor_user_id,
+        type: row.type,
+        payload: row.payload_json,
+        chatChannelId: row.chat_channel_id,
+        docId: row.doc_id,
+        createdAt: Number(row.created_at),
+      }),
+    );
+  }
+
+  public async pushEvents(inputEvents: EventRecord[]): Promise<string[]> {
+    if (inputEvents.length === 0) {
+      return [];
     }
 
-    const payload = parsePayloadForEventType(event.eventType, event.payload);
-    const payloadJson = JSON.stringify(payload);
-    const serverCreatedAt = Date.now();
+    const accepted: string[] = [];
 
-    const seqResult = await client.query<{ last_seq: string | number }>(
-      `
-      INSERT INTO project_sequences (project_id, last_seq)
-      VALUES ($1, 1)
-      ON CONFLICT (project_id)
-      DO UPDATE SET last_seq = project_sequences.last_seq + 1
-      RETURNING last_seq
-      `,
-      [event.projectId]
-    );
-    const seq = Number(seqResult.rows[0]?.last_seq ?? 1);
+    for (const rawEvent of inputEvents) {
+      const event = eventSchema.parse(rawEvent);
+      const inserted = await this.insertEvent(event);
+      if (!inserted) {
+        continue;
+      }
+      accepted.push(event.id);
+      await this.applyProjection(event);
+    }
 
-    await client.query(
+    return accepted;
+  }
+
+  private async insertEvent(event: EventRecord): Promise<boolean> {
+    const result = await this.pool.query(
       `
-      INSERT INTO events (id, project_id, seq, actor_user_id, event_type, entity_id, payload_json, created_at, server_created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO events (id, project_id, actor_user_id, type, payload_json, chat_channel_id, doc_id, created_at)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+      ON CONFLICT (id) DO NOTHING
       `,
       [
         event.id,
         event.projectId,
-        seq,
         event.actorUserId,
-        event.eventType,
-        event.entityId,
-        payloadJson,
+        event.type,
+        JSON.stringify(event.payload),
+        event.chatChannelId,
+        event.docId,
         event.createdAt,
-        serverCreatedAt
-      ]
+      ],
     );
 
-    await this.applyProjection(client, event, seq);
-
-    return serverSyncEventSchema.parse({
-      ...event,
-      payload,
-      seq,
-      serverCreatedAt
-    });
+    return (result.rowCount ?? 0) > 0;
   }
 
-  private async applyProjection(client: PoolClient, event: ClientSyncEvent, seq: number): Promise<void> {
-    switch (event.eventType) {
+  private async applyProjection(event: EventRecord): Promise<void> {
+    const payload = eventPayloadSchema.parse({ type: event.type, payload: event.payload });
+
+    await this.upsertProjectTimestamp(event.projectId, event.createdAt);
+
+    switch (payload.type) {
       case "project.created": {
-        const payload = parsePayloadForEventType(event.eventType, event.payload);
-        await client.query(
+        await this.pool.query(
           `
-          INSERT INTO projects (id, name, description, status, owner_user_id, created_at, updated_at, archived_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
-          ON CONFLICT (id)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            status = EXCLUDED.status,
-            updated_at = EXCLUDED.updated_at
+          INSERT INTO projects (project_id, name, created_at, updated_at)
+          VALUES ($1, $2, $3, $3)
+          ON CONFLICT (project_id)
+          DO UPDATE SET name = EXCLUDED.name, updated_at = EXCLUDED.updated_at
           `,
-          [event.projectId, payload.name, payload.description, payload.status, event.actorUserId, event.createdAt, event.createdAt]
-        );
-        await client.query(
-          `
-          INSERT INTO project_members (project_id, user_id, role, joined_at, left_at)
-          VALUES ($1, $2, 'owner', $3, NULL)
-          ON CONFLICT (project_id, user_id) DO NOTHING
-          `,
-          [event.projectId, event.actorUserId, event.createdAt]
-        );
-        break;
-      }
-      case "project.updated": {
-        const payload = parsePayloadForEventType(event.eventType, event.payload);
-        await client.query(
-          `
-          UPDATE projects
-          SET
-            name = COALESCE($2, name),
-            description = COALESCE($3, description),
-            status = COALESCE($4, status),
-            updated_at = $5
-          WHERE id = $1
-          `,
-          [event.projectId, payload.name ?? null, payload.description ?? null, payload.status ?? null, event.createdAt]
+          [event.projectId, payload.payload.name, event.createdAt],
         );
         break;
       }
       case "member.joined": {
-        const payload = parsePayloadForEventType(event.eventType, event.payload);
-        await client.query(
+        await this.upsertUser({
+          userId: payload.payload.memberUserId,
+          displayName: payload.payload.memberDisplayName,
+          avatarUrl: payload.payload.memberAvatarUrl,
+        });
+        await this.pool.query(
           `
-          INSERT INTO project_members (project_id, user_id, role, joined_at, left_at)
-          VALUES ($1, $2, $3, $4, NULL)
-          ON CONFLICT (project_id, user_id)
-          DO UPDATE SET role = EXCLUDED.role, left_at = NULL
+          INSERT INTO project_members (project_id, user_id, joined_at)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (project_id, user_id) DO NOTHING
           `,
-          [event.projectId, payload.userId, payload.role, event.createdAt]
+          [event.projectId, payload.payload.memberUserId, event.createdAt],
         );
         break;
       }
-      case "member.left": {
-        const payload = parsePayloadForEventType(event.eventType, event.payload);
-        await client.query(
+      case "chat.created": {
+        await this.pool.query(
           `
-          UPDATE project_members
-          SET left_at = $3
-          WHERE project_id = $1
-            AND user_id = $2
+          INSERT INTO chat_channels (chat_channel_id, project_id, name, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $4)
+          ON CONFLICT (chat_channel_id) DO NOTHING
           `,
-          [event.projectId, payload.userId, event.createdAt]
+          [payload.payload.chatChannelId, event.projectId, payload.payload.name, event.createdAt],
         );
         break;
       }
-      case "message.posted":
-      case "decision.recorded":
-      case "task.created":
-      case "task.completed":
-      case "task.reopened":
+      case "chat.renamed": {
+        await this.pool.query(
+          "UPDATE chat_channels SET name = $1, updated_at = $2 WHERE chat_channel_id = $3",
+          [payload.payload.name, event.createdAt, payload.payload.chatChannelId],
+        );
         break;
+      }
+      case "decision.recorded": {
+        await this.pool.query(
+          `
+          INSERT INTO decisions (decision_id, project_id, chat_channel_id, title, body, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $6)
+          ON CONFLICT (decision_id) DO NOTHING
+          `,
+          [
+            event.id,
+            event.projectId,
+            payload.payload.chatChannelId,
+            payload.payload.title,
+            payload.payload.body,
+            event.createdAt,
+          ],
+        );
+        break;
+      }
+      case "task.created": {
+        await this.pool.query(
+          `
+          INSERT INTO tasks (task_id, project_id, chat_channel_id, title, completed, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, FALSE, $5, $5)
+          ON CONFLICT (task_id) DO NOTHING
+          `,
+          [
+            payload.payload.taskId,
+            event.projectId,
+            payload.payload.chatChannelId,
+            payload.payload.title,
+            event.createdAt,
+          ],
+        );
+        break;
+      }
+      case "task.completed": {
+        await this.pool.query(
+          "UPDATE tasks SET completed = TRUE, updated_at = $1 WHERE task_id = $2",
+          [event.createdAt, payload.payload.taskId],
+        );
+        break;
+      }
+      case "task.reopened": {
+        await this.pool.query(
+          "UPDATE tasks SET completed = FALSE, updated_at = $1 WHERE task_id = $2",
+          [event.createdAt, payload.payload.taskId],
+        );
+        break;
+      }
+      case "doc.created": {
+        await this.pool.query(
+          `
+          INSERT INTO docs (doc_id, project_id, title, markdown, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $5)
+          ON CONFLICT (doc_id) DO NOTHING
+          `,
+          [
+            payload.payload.docId,
+            event.projectId,
+            payload.payload.title,
+            payload.payload.markdown,
+            event.createdAt,
+          ],
+        );
+        break;
+      }
+      case "doc.renamed": {
+        await this.pool.query(
+          "UPDATE docs SET title = $1, updated_at = $2 WHERE doc_id = $3",
+          [payload.payload.title, event.createdAt, payload.payload.docId],
+        );
+        break;
+      }
+      case "doc.updated": {
+        await this.pool.query(
+          "UPDATE docs SET markdown = $1, updated_at = $2 WHERE doc_id = $3",
+          [payload.payload.markdown, event.createdAt, payload.payload.docId],
+        );
+        break;
+      }
+      case "doc.comment.added": {
+        await this.pool.query(
+          `
+          INSERT INTO doc_comments (comment_id, project_id, doc_id, author_user_id, body, anchor, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (comment_id) DO NOTHING
+          `,
+          [
+            payload.payload.commentId,
+            event.projectId,
+            payload.payload.docId,
+            event.actorUserId,
+            payload.payload.body,
+            payload.payload.anchor,
+            event.createdAt,
+          ],
+        );
+        break;
+      }
+      case "message.posted": {
+        break;
+      }
     }
-
-    await client.query("UPDATE projects SET updated_at = $2 WHERE id = $1", [event.projectId, event.createdAt]);
-    await client.query("UPDATE project_sequences SET last_seq = GREATEST(last_seq, $2) WHERE project_id = $1", [event.projectId, seq]);
   }
 
-  private rowToServerEvent(row: EventRow): ServerSyncEvent {
-    const eventType = row.event_type;
-    const payload = parsePayloadForEventType(eventType, JSON.parse(row.payload_json) as unknown);
-    return serverSyncEventSchema.parse({
-      id: row.id,
-      projectId: row.project_id,
-      seq: Number(row.seq),
-      actorUserId: row.actor_user_id,
-      eventType,
-      entityId: row.entity_id,
-      payload,
-      createdAt: Number(row.created_at),
-      serverCreatedAt: Number(row.server_created_at)
-    });
+  private async upsertProjectTimestamp(projectId: string, updatedAt: number): Promise<void> {
+    await this.pool.query(
+      `
+      INSERT INTO projects (project_id, name, created_at, updated_at)
+      VALUES ($1, COALESCE((SELECT name FROM projects WHERE project_id = $1), 'Untitled project'), $2, $2)
+      ON CONFLICT (project_id)
+      DO UPDATE SET updated_at = GREATEST(projects.updated_at, EXCLUDED.updated_at)
+      `,
+      [projectId, updatedAt],
+    );
   }
 }

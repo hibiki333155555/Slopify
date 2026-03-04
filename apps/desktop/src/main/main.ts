@@ -1,61 +1,61 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow } from "electron";
-import { initializeLocalDatabase } from "./db.js";
+import { createLocalDb } from "./db.js";
 import { registerIpcHandlers } from "./ipc.js";
-import { LocalRepository } from "./repository.js";
-import { DesktopSyncClient } from "./sync-client.js";
+import { DesktopRepository } from "./repository.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
-let mainWindow: BrowserWindow | null = null;
+const createWindow = async (): Promise<void> => {
+  const preloadPath = path.join(currentDir, "../preload/index.cjs");
 
-const customUserDataDir = process.env.SLOPIFY_USER_DATA_DIR;
-if (customUserDataDir && customUserDataDir.trim().length > 0) {
-  app.setPath("userData", customUserDataDir);
-}
-
-function createMainWindow(): void {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 960,
     minHeight: 640,
+    title: "Slopify",
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.cjs"),
+      preload: preloadPath,
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+    },
   });
 
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-  if (rendererUrl) {
-    mainWindow.loadURL(rendererUrl).catch(() => undefined);
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (devUrl !== undefined && devUrl.length > 0) {
+    await window.loadURL(devUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html")).catch(() => undefined);
+    const htmlPath = path.join(currentDir, "../renderer/index.html");
+    await window.loadFile(htmlPath);
   }
-}
+};
 
-app.whenReady().then(() => {
-  const localDb = initializeLocalDatabase(app.getPath("userData"));
-  const repository = new LocalRepository(localDb.sqlite, localDb.orm);
-  const syncClient = new DesktopSyncClient(repository, (payload) => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return;
-    }
-    mainWindow.webContents.send("sync:updated", payload);
-  });
+const bootstrap = async (): Promise<void> => {
+  const customUserData = process.env.SLOPIFY_USER_DATA_DIR;
+  if (customUserData !== undefined && customUserData.length > 0) {
+    app.setPath("userData", customUserData);
+  }
 
-  registerIpcHandlers(repository, syncClient);
-  createMainWindow();
+  await app.whenReady();
 
-  app.on("activate", () => {
+  const userDataDir = app.getPath("userData");
+  const { db, sqlite } = createLocalDb(userDataDir);
+  const repository = new DesktopRepository(db, sqlite);
+
+  registerIpcHandlers(repository);
+  await repository.init();
+  await createWindow();
+
+  app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      await createWindow();
     }
   });
-});
+};
+
+void bootstrap();
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

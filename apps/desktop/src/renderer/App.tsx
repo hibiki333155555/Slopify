@@ -1,541 +1,614 @@
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
-import type { ComposerMode, LocalTimelineEvent, TimelineFilter } from "@slopify/shared";
-import { useAppStore } from "./store.js";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { getSelectedDoc, useAppStore } from "./store.js";
 
-const timelineFilters: TimelineFilter[] = ["all", "message", "decision", "task", "openTasks"];
-const projectStatusFilters: Array<"all" | "active" | "paused" | "done" | "archived"> = [
-  "all",
-  "active",
-  "paused",
-  "done",
-  "archived"
-];
-
-function dateLabel(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
+const formatTimestamp = (timestamp: number): string =>
+  new Date(timestamp).toLocaleString(undefined, {
     year: "numeric",
     month: "short",
-    day: "numeric"
-  }).format(new Date(timestamp));
-}
-
-function timeLabel(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(timestamp));
-}
+    minute: "2-digit",
+  });
 
-function groupByDate(events: LocalTimelineEvent[]): Array<{ label: string; events: LocalTimelineEvent[] }> {
-  const map = new Map<string, LocalTimelineEvent[]>();
-  for (const event of events) {
-    const label = dateLabel(event.createdAt);
-    const bucket = map.get(label) ?? [];
-    bucket.push(event);
-    map.set(label, bucket);
-  }
-  return Array.from(map.entries()).map(([label, grouped]) => ({ label, events: grouped }));
-}
-
-export function App(): JSX.Element {
-  const {
-    initialized,
-    loading,
-    error,
-    profile,
-    projects,
-    projectFilter,
-    selectedProjectId,
-    roomSummary,
-    openTasks,
-    timelineEvents,
-    timelineFilter,
-    nextBeforeCreatedAt,
-    inviteInfo,
-    sync,
-    bootstrap,
-    setupProfile,
-    setProjectFilter,
-    createProject,
-    selectProject,
-    loadOlderTimeline,
-    setTimelineFilter,
-    postMessage,
-    recordDecision,
-    createTask,
-    completeTask,
-    reopenTask,
-    createInvite,
-    joinWithInvite,
-    connectSync,
-    disconnectSync,
-    applySyncUpdate
-  } = useAppStore();
+const SetupScreen = (): JSX.Element => {
+  const completeSetup = useAppStore((state) => state.completeSetup);
+  const loading = useAppStore((state) => state.loading);
 
   const [displayName, setDisplayName] = useState("");
-  const [projectName, setProjectName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
-  const [projectStatus, setProjectStatus] = useState<"active" | "paused" | "done" | "archived">("active");
-  const [projectSearch, setProjectSearch] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [serverUrl, setServerUrl] = useState("http://127.0.0.1:4000");
+  const [serverAccessPassword, setServerAccessPassword] = useState("");
 
-  const [composerMode, setComposerMode] = useState<ComposerMode>("message");
-  const [messageBody, setMessageBody] = useState("");
-  const [decisionSummary, setDecisionSummary] = useState("");
-  const [decisionNote, setDecisionNote] = useState("");
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskAssignee, setTaskAssignee] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-
-  useEffect(() => {
-    void bootstrap();
-  }, [bootstrap]);
-
-  useEffect(() => {
-    return window.projectLog.sync.onUpdated((payload) => {
-      void applySyncUpdate(payload);
+  const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    await completeSetup({
+      displayName,
+      avatarUrl,
+      serverUrl,
+      serverAccessPassword,
     });
-  }, [applySyncUpdate]);
-
-  const groupedEvents = useMemo(() => groupByDate(timelineEvents), [timelineEvents]);
-  const openTaskIds = useMemo(() => new Set(openTasks.map((task) => task.id)), [openTasks]);
-
-  const memberNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    if (roomSummary) {
-      for (const member of roomSummary.members) {
-        map.set(member.userId, member.displayName);
-      }
-    }
-    return map;
-  }, [roomSummary]);
-
-  const visibleProjects = useMemo(() => {
-    const query = projectSearch.trim().toLowerCase();
-    if (!query) {
-      return projects;
-    }
-    return projects.filter((project) => {
-      return (
-        project.name.toLowerCase().includes(query) ||
-        project.description.toLowerCase().includes(query)
-      );
-    });
-  }, [projects, projectSearch]);
-
-  const handleSetupSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!displayName.trim()) {
-      return;
-    }
-    await setupProfile(displayName.trim());
-    setDisplayName("");
   };
 
-  const handleCreateProjectSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!projectName.trim()) {
-      return;
-    }
-    await createProject({
-      name: projectName.trim(),
-      description: projectDescription.trim(),
-      status: projectStatus
-    });
-    setProjectName("");
-    setProjectDescription("");
-    setProjectStatus("active");
-  };
+  return (
+    <main className="screen auth-screen">
+      <section className="card auth-card">
+        <h1>Welcome to Slopify</h1>
+        <p className="muted">Connect to your sync server and finish your profile.</p>
 
-  const handleComposerSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (composerMode === "message") {
-      const body = messageBody.trim();
-      if (!body) {
-        return;
-      }
-      await postMessage(body);
-      setMessageBody("");
-      return;
-    }
-    if (composerMode === "decision") {
-      const summary = decisionSummary.trim();
-      if (!summary) {
-        return;
-      }
-      await recordDecision(summary, decisionNote.trim());
-      setDecisionSummary("");
-      setDecisionNote("");
-      return;
-    }
-    const title = taskTitle.trim();
-    if (!title) {
-      return;
-    }
-    await createTask(title, taskAssignee.trim() || null);
-    setTaskTitle("");
-    setTaskAssignee("");
-  };
-
-  const handleEnterToSend = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      const form = event.currentTarget.form;
-      if (form) {
-        form.requestSubmit();
-      }
-    }
-  };
-
-  const handleJoinByCode = async (event: FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (!joinCode.trim()) {
-      return;
-    }
-    await joinWithInvite(joinCode.trim());
-    setJoinCode("");
-  };
-
-  if (!initialized || loading) {
-    return <div className="loading-screen">Loading...</div>;
-  }
-
-  if (!profile) {
-    return (
-      <main className="first-launch">
-        <h1>Project Log Desktop</h1>
-        <p>Create your local profile.</p>
-        <form onSubmit={handleSetupSubmit} className="profile-form">
+        <form onSubmit={(event) => void onSubmit(event)} className="stack-form">
           <label>
-            Display Name
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={50} required />
+            <span>Display name</span>
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
           </label>
-          <button type="submit">Start</button>
+
+          <label>
+            <span>Avatar URL (optional)</span>
+            <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} />
+          </label>
+
+          <label>
+            <span>Server URL</span>
+            <input value={serverUrl} onChange={(event) => setServerUrl(event.target.value)} required />
+          </label>
+
+          <label>
+            <span>Server access password</span>
+            <input
+              value={serverAccessPassword}
+              onChange={(event) => setServerAccessPassword(event.target.value)}
+              required
+              type="password"
+            />
+          </label>
+
+          <button type="submit" disabled={loading}>
+            Continue
+          </button>
         </form>
-        {error ? <p className="error">{error}</p> : null}
+      </section>
+    </main>
+  );
+};
+
+const ProjectsScreen = (): JSX.Element => {
+  const projects = useAppStore((state) => state.projects);
+  const createProject = useAppStore((state) => state.createProject);
+  const joinProject = useAppStore((state) => state.joinProject);
+  const openProject = useAppStore((state) => state.openProject);
+  const navigateSettings = useAppStore((state) => state.navigateSettings);
+  const syncStatus = useAppStore((state) => state.syncStatus);
+
+  const [projectName, setProjectName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+
+  const onCreate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    await createProject(projectName);
+    setProjectName("");
+  };
+
+  const onJoin = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    await joinProject(inviteCode);
+    setInviteCode("");
+    setJoinModalOpen(false);
+  };
+
+  return (
+    <main className="screen projects-screen">
+      <header className="topbar">
+        <div>
+          <h1>Projects</h1>
+          <p className="muted">Local-first collaboration workspace</p>
+        </div>
+        <div className="topbar-actions">
+          <span className="pill">{syncStatus.connected ? "Online" : "Offline"}</span>
+          <span className="pill">Pending sync: {syncStatus.pendingCount}</span>
+          <button type="button" onClick={navigateSettings}>
+            Settings
+          </button>
+        </div>
+      </header>
+
+      <section className="projects-layout">
+        <aside className="card side-form">
+          <h2>Create project</h2>
+          <form onSubmit={(event) => void onCreate(event)} className="stack-form">
+            <input
+              placeholder="Project name"
+              value={projectName}
+              onChange={(event) => setProjectName(event.target.value)}
+              required
+            />
+            <button type="submit">Create</button>
+          </form>
+
+          <h2>Join project</h2>
+          <button type="button" onClick={() => setJoinModalOpen(true)}>
+            Join with invite
+          </button>
+        </aside>
+
+        <section className="card project-list">
+          {projects.length === 0 ? (
+            <p className="muted">No projects yet. Create one to get started.</p>
+          ) : (
+            <ul>
+              {projects.map((project) => (
+                <li key={project.projectId}>
+                  <button type="button" className="project-item" onClick={() => void openProject(project.projectId)}>
+                    <strong>{project.name}</strong>
+                    <span>{project.memberCount} members</span>
+                    <span>Last activity {formatTimestamp(project.lastActivityAt)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </section>
+
+      {joinModalOpen && (
+        <div className="join-modal-backdrop" role="dialog" aria-modal="true" aria-label="Join project">
+          <section className="card join-modal">
+            <h2>Join with invite</h2>
+            <form onSubmit={(event) => void onJoin(event)} className="stack-form">
+              <input
+                placeholder="Invite code"
+                value={inviteCode}
+                onChange={(event) => setInviteCode(event.target.value)}
+                required
+              />
+              <div className="actions-row">
+                <button type="button" onClick={() => setJoinModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit">Join</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+    </main>
+  );
+};
+
+const WorkspaceScreen = (): JSX.Element => {
+  const workspace = useAppStore((state) => state.activeWorkspace);
+  const navigateProjects = useAppStore((state) => state.navigateProjects);
+  const createInvite = useAppStore((state) => state.createInvite);
+  const inviteCode = useAppStore((state) => state.inviteCode);
+
+  const selectChatChannel = useAppStore((state) => state.selectChatChannel);
+  const selectDoc = useAppStore((state) => state.selectDoc);
+  const createChannel = useAppStore((state) => state.createChannel);
+
+  const postMessage = useAppStore((state) => state.postMessage);
+  const recordDecision = useAppStore((state) => state.recordDecision);
+  const createTask = useAppStore((state) => state.createTask);
+  const setTaskStatus = useAppStore((state) => state.setTaskStatus);
+
+  const createDoc = useAppStore((state) => state.createDoc);
+  const renameDoc = useAppStore((state) => state.renameDoc);
+  const updateDoc = useAppStore((state) => state.updateDoc);
+  const addDocComment = useAppStore((state) => state.addDocComment);
+
+  const [channelName, setChannelName] = useState("");
+  const [docTitle, setDocTitle] = useState("");
+  const [docRenameTitle, setDocRenameTitle] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [decisionTitle, setDecisionTitle] = useState("");
+  const [decisionBody, setDecisionBody] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [commentBody, setCommentBody] = useState("");
+
+  const selectedDoc = getSelectedDoc(workspace);
+  const [docMarkdownDraft, setDocMarkdownDraft] = useState("");
+
+  useEffect(() => {
+    if (selectedDoc !== null) {
+      setDocMarkdownDraft(selectedDoc.markdown);
+      setDocRenameTitle(selectedDoc.title);
+    }
+  }, [selectedDoc?.docId, selectedDoc?.markdown, selectedDoc?.title]);
+
+  const channelTasks = useMemo(() => {
+    if (workspace === null || workspace.selectedType !== "chat") {
+      return [];
+    }
+    return workspace.data.tasks.filter((task) => task.chatChannelId === workspace.selectedItemId);
+  }, [workspace]);
+
+  const channelDecisions = useMemo(() => {
+    if (workspace === null || workspace.selectedType !== "chat") {
+      return [];
+    }
+    return workspace.data.decisions.filter((decision) => decision.chatChannelId === workspace.selectedItemId);
+  }, [workspace]);
+
+  if (workspace === null) {
+    return (
+      <main className="screen">
+        <p className="muted">No project selected.</p>
       </main>
     );
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <header className="sidebar-header">
-          <h2>Projects</h2>
-          <p>{profile.displayName}</p>
-          <div className="sync-row">
-            <span className={sync.connected ? "online" : "offline"}>{sync.connected ? "Connected" : "Offline"}</span>
-            {sync.connected ? (
-              <button onClick={() => void disconnectSync()}>Disconnect</button>
-            ) : (
-              <button onClick={() => void connectSync()}>Connect</button>
-            )}
-          </div>
-        </header>
-
-        <form className="create-project-form" onSubmit={handleCreateProjectSubmit}>
-          <label>
-            Project Name
-            <input value={projectName} onChange={(event) => setProjectName(event.target.value)} maxLength={100} required />
-          </label>
-          <label>
-            Description
-            <input value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} maxLength={200} />
-          </label>
-          <label>
-            Status
-            <select value={projectStatus} onChange={(event) => setProjectStatus(event.target.value as typeof projectStatus)}>
-              <option value="active">active</option>
-              <option value="paused">paused</option>
-              <option value="done">done</option>
-              <option value="archived">archived</option>
-            </select>
-          </label>
-          <button type="submit">Create Project</button>
-        </form>
-
-        <form className="create-project-form" onSubmit={handleJoinByCode}>
-          <label>
-            Invite Code
-            <input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-          </label>
-          <button type="submit">Join with Invite Code</button>
-        </form>
-
-        <nav className="status-tabs">
-          {projectStatusFilters.map((status) => (
-            <button
-              key={status}
-              className={projectFilter === status ? "active" : ""}
-              onClick={() => void setProjectFilter(status)}
-            >
-              {status}
-            </button>
-          ))}
-        </nav>
-
-        <div className="create-project-form">
-          <label>
-            Search
-            <input value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} placeholder="Search projects" />
-          </label>
+    <main className="screen workspace-screen">
+      <header className="topbar">
+        <div>
+          <button type="button" className="link-btn" onClick={navigateProjects}>
+            Back to Projects
+          </button>
+          <h1>{workspace.data.project.name}</h1>
         </div>
+        <div className="topbar-actions">
+          <button type="button" onClick={() => void createInvite()}>
+            Create Invite
+          </button>
+          {inviteCode !== null && <span className="pill">Invite: {inviteCode}</span>}
+        </div>
+      </header>
 
-        <ul className="project-list">
-          {visibleProjects.length === 0 ? (
-            <li className="empty">
-              <p>No projects yet</p>
-              <p>Create your first project</p>
-            </li>
-          ) : (
-            visibleProjects.map((project) => (
-              <li key={project.id}>
-                <button
-                  className={selectedProjectId === project.id ? "project-item active" : "project-item"}
-                  onClick={() => void selectProject(project.id)}
-                >
-                  <span className="project-name">{project.name}</span>
-                  <span className="project-meta">{project.status}</span>
-                  <span className="project-meta">Unread: {project.unreadCount}</span>
-                  <span className="project-meta">Open: {project.openTaskCount}</span>
-                  <span className="project-meta">Online: {project.onlineCount}</span>
-                  <span className="project-meta">{timeLabel(project.lastUpdatedAt)}</span>
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-        <button className="load-older">Settings</button>
-      </aside>
-
-      <main className="room">
-        {!roomSummary ? (
-          <section className="empty-room">
-            <h2>Select a project</h2>
-            <p>Timeline history will appear here.</p>
-          </section>
-        ) : (
-          <>
-            <header className="room-header">
-              <div>
-                <h1>{roomSummary.project.name}</h1>
-                <p>{roomSummary.project.description || "No description"}</p>
-              </div>
-              <div className="room-stats">
-                <span>Status: {roomSummary.project.status}</span>
-                <span>Online: {roomSummary.onlineCount}</span>
-                <span>Open Tasks: {roomSummary.openTaskCount}</span>
-              </div>
-              <div className="latest-decisions">
-                <strong>Latest decisions</strong>
-                {roomSummary.latestDecisions.length === 0 ? (
-                  <span>None yet</span>
-                ) : (
-                  roomSummary.latestDecisions.map((decision) => (
-                    <span key={decision.id}>{decision.summary}</span>
-                  ))
-                )}
-              </div>
-              <div className="latest-decisions">
-                <button onClick={() => void createInvite()}>Create Invite Code</button>
-                {inviteInfo ? (
-                  <span>
-                    {inviteInfo.code} (expires {dateLabel(inviteInfo.expiresAt)})
-                  </span>
-                ) : null}
-              </div>
-            </header>
-
-            <nav className="timeline-filters">
-              {timelineFilters.map((filter) => (
-                <button
-                  key={filter}
-                  className={timelineFilter === filter ? "active" : ""}
-                  onClick={() => void setTimelineFilter(filter)}
-                >
-                  {filter}
-                </button>
+      <div className="workspace-layout">
+        <aside className="workspace-sidebar">
+          <section className="card nav-card">
+            <h2>Chats</h2>
+            <ul>
+              {workspace.data.channels.map((channel) => (
+                <li key={channel.chatChannelId}>
+                  <button
+                    type="button"
+                    className={workspace.selectedItemId === channel.chatChannelId ? "selected" : ""}
+                    onClick={() => void selectChatChannel(channel.chatChannelId)}
+                  >
+                    #{channel.name}
+                  </button>
+                </li>
               ))}
-            </nav>
+            </ul>
+            <form
+              className="inline-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void createChannel(channelName);
+                setChannelName("");
+              }}
+            >
+              <input
+                value={channelName}
+                onChange={(event) => setChannelName(event.target.value)}
+                placeholder="New channel"
+                required
+              />
+              <button type="submit">Add</button>
+            </form>
+          </section>
 
-            <section className="timeline">
-              {nextBeforeCreatedAt !== null ? (
-                <button className="load-older" onClick={() => void loadOlderTimeline()}>
-                  Load older events
-                </button>
-              ) : null}
+          <section className="card nav-card">
+            <h2>Docs</h2>
+            <ul>
+              {workspace.data.docs.map((doc) => (
+                <li key={doc.docId}>
+                  <button
+                    type="button"
+                    className={workspace.selectedItemId === doc.docId ? "selected" : ""}
+                    onClick={() => void selectDoc(doc.docId)}
+                  >
+                    {doc.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <form
+              className="inline-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void createDoc({ title: docTitle, markdown: "" });
+                setDocTitle("");
+              }}
+            >
+              <input value={docTitle} onChange={(event) => setDocTitle(event.target.value)} placeholder="New doc" required />
+              <button type="submit">Add</button>
+            </form>
+          </section>
 
-              {timelineFilter === "openTasks" ? (
-                <div className="open-task-list">
-                  {openTasks.length === 0 ? <p>No open tasks</p> : null}
-                  {openTasks.map((task) => (
-                    <article key={task.id} className="event-card task">
+          <section className="card nav-card">
+            <h2>Members</h2>
+            <ul>
+              {workspace.data.members.map((member) => (
+                <li key={member.userId}>{member.displayName}</li>
+              ))}
+            </ul>
+          </section>
+        </aside>
+
+        <section className="workspace-main">
+          {workspace.selectedType === "chat" ? (
+            <>
+              <section className="card timeline-card">
+                <h2>Chat timeline</h2>
+                <ul className="timeline-list">
+                  {workspace.timeline.map((entry) => (
+                    <li key={entry.id}>
                       <header>
-                        <strong>{task.title}</strong>
-                        <span>{timeLabel(task.createdAt)}</span>
+                        <strong>{entry.actorDisplayName}</strong>
+                        <span>{formatTimestamp(entry.createdAt)}</span>
                       </header>
-                      <p>Assignee: {task.assigneeUserId ?? "unassigned"}</p>
-                      <button onClick={() => void completeTask(task.id)}>Mark complete</button>
-                    </article>
+                      <p>{entry.timelineText}</p>
+                    </li>
                   ))}
-                </div>
-              ) : (
-                groupedEvents.map((group) => (
-                  <div key={group.label} className="timeline-group">
-                    <h3>{group.label}</h3>
-                    {group.events.map((event) => {
-                      const actor = memberNameById.get(event.actorUserId) ?? event.actorUserId;
-                      const time = timeLabel(event.createdAt);
+                </ul>
+              </section>
 
-                      if (event.eventType === "message.posted") {
-                        return (
-                          <article key={event.id} className="event-card message">
-                            <header>
-                              <span>{actor}</span>
-                              <span>{time}</span>
-                            </header>
-                            <p>{event.payload.body}</p>
-                          </article>
-                        );
-                      }
-
-                      if (event.eventType === "decision.recorded") {
-                        return (
-                          <article key={event.id} className="event-card decision">
-                            <header>
-                              <strong>Decision</strong>
-                              <span>{time}</span>
-                            </header>
-                            <p>{event.payload.summary}</p>
-                            {event.payload.note ? <small>{event.payload.note}</small> : null}
-                          </article>
-                        );
-                      }
-
-                      if (event.eventType === "task.created") {
-                        const isOpen = openTaskIds.has(event.payload.taskId);
-                        return (
-                          <article key={event.id} className="event-card task">
-                            <header>
-                              <strong>Task</strong>
-                              <span>{time}</span>
-                            </header>
-                            <p>{event.payload.title}</p>
-                            <p>Assignee: {event.payload.assigneeUserId ?? "unassigned"}</p>
-                            {isOpen ? (
-                              <button onClick={() => void completeTask(event.payload.taskId)}>Complete</button>
-                            ) : (
-                              <button onClick={() => void reopenTask(event.payload.taskId)}>Reopen</button>
-                            )}
-                          </article>
-                        );
-                      }
-
-                      if (event.eventType === "task.completed" || event.eventType === "task.reopened") {
-                        const taskId = event.payload.taskId;
-                        const isOpen = openTaskIds.has(taskId);
-                        return (
-                          <article key={event.id} className="event-card task">
-                            <header>
-                              <strong>{event.eventType === "task.completed" ? "Task completed" : "Task reopened"}</strong>
-                              <span>{time}</span>
-                            </header>
-                            <p>{taskId}</p>
-                            {isOpen ? (
-                              <button onClick={() => void completeTask(taskId)}>Complete</button>
-                            ) : (
-                              <button onClick={() => void reopenTask(taskId)}>Reopen</button>
-                            )}
-                          </article>
-                        );
-                      }
-
-                      return (
-                        <article key={event.id} className="event-card system">
-                          <header>
-                            <strong>{event.eventType}</strong>
-                            <span>{time}</span>
-                          </header>
-                        </article>
-                      );
-                    })}
-                  </div>
-                ))
-              )}
-            </section>
-
-            <form className="composer" onSubmit={handleComposerSubmit}>
-              <div className="composer-modes">
-                <button
-                  type="button"
-                  className={composerMode === "message" ? "active" : ""}
-                  onClick={() => setComposerMode("message")}
+              <section className="card composer-card">
+                <h2>Post Message</h2>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void postMessage(messageBody);
+                    setMessageBody("");
+                  }}
+                  className="stack-form"
                 >
-                  Message
-                </button>
-                <button
-                  type="button"
-                  className={composerMode === "decision" ? "active" : ""}
-                  onClick={() => setComposerMode("decision")}
+                  <textarea
+                    value={messageBody}
+                    onChange={(event) => setMessageBody(event.target.value)}
+                    placeholder="Type a message"
+                    required
+                  />
+                  <button type="submit">Send message</button>
+                </form>
+
+                <h2>Record Decision</h2>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void recordDecision(decisionTitle, decisionBody);
+                    setDecisionTitle("");
+                    setDecisionBody("");
+                  }}
+                  className="stack-form"
                 >
-                  Decision
-                </button>
-                <button type="button" className={composerMode === "task" ? "active" : ""} onClick={() => setComposerMode("task")}>
-                  Task
-                </button>
-              </div>
-
-              {composerMode === "message" ? (
-                <textarea
-                  value={messageBody}
-                  onChange={(event) => setMessageBody(event.target.value)}
-                  onKeyDown={handleEnterToSend}
-                  placeholder="Write a message"
-                  required
-                />
-              ) : null}
-
-              {composerMode === "decision" ? (
-                <div className="composer-grid">
                   <input
-                    value={decisionSummary}
-                    onChange={(event) => setDecisionSummary(event.target.value)}
-                    placeholder="Decision summary"
-                    maxLength={200}
+                    value={decisionTitle}
+                    onChange={(event) => setDecisionTitle(event.target.value)}
+                    placeholder="Decision title"
                     required
                   />
                   <textarea
-                    value={decisionNote}
-                    onChange={(event) => setDecisionNote(event.target.value)}
-                    onKeyDown={handleEnterToSend}
-                    placeholder="Note (optional)"
+                    value={decisionBody}
+                    onChange={(event) => setDecisionBody(event.target.value)}
+                    placeholder="Decision detail"
+                    required
                   />
-                </div>
-              ) : null}
+                  <button type="submit">Record decision</button>
+                </form>
 
-              {composerMode === "task" ? (
-                <div className="composer-grid">
+                <h2>Create Task</h2>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void createTask(taskTitle);
+                    setTaskTitle("");
+                  }}
+                  className="stack-form"
+                >
                   <input
                     value={taskTitle}
                     onChange={(event) => setTaskTitle(event.target.value)}
                     placeholder="Task title"
-                    maxLength={200}
                     required
                   />
-                  <input
-                    value={taskAssignee}
-                    onChange={(event) => setTaskAssignee(event.target.value)}
-                    placeholder="Assignee user id (optional)"
-                  />
-                </div>
-              ) : null}
+                  <button type="submit">Create task</button>
+                </form>
 
-              <button type="submit">Send</button>
-            </form>
-          </>
-        )}
-      </main>
+                <h2>Tasks</h2>
+                <ul className="task-list">
+                  {channelTasks.map((task) => (
+                    <li key={task.taskId}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={(event) => void setTaskStatus(task.taskId, event.target.checked)}
+                        />
+                        <span className={task.completed ? "done" : ""}>{task.title}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
 
-      {error ? <div className="error-banner">{error}</div> : null}
-    </div>
+                <h2>Decisions</h2>
+                <ul className="decision-list">
+                  {channelDecisions.map((decision) => (
+                    <li key={decision.decisionId}>
+                      <strong>{decision.title}</strong>
+                      <p>{decision.body}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </>
+          ) : (
+            <>
+              <section className="card doc-header">
+                <h2>Document</h2>
+                {selectedDoc !== null && (
+                  <form
+                    className="inline-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void renameDoc(selectedDoc.docId, docRenameTitle);
+                    }}
+                  >
+                    <input
+                      value={docRenameTitle}
+                      onChange={(event) => setDocRenameTitle(event.target.value)}
+                    />
+                    <button type="submit">Rename</button>
+                  </form>
+                )}
+              </section>
+
+              {selectedDoc !== null && (
+                <section className="doc-layout">
+                  <article className="card doc-editor">
+                    <h3>Markdown</h3>
+                    <textarea
+                      value={docMarkdownDraft}
+                      onChange={(event) => setDocMarkdownDraft(event.target.value)}
+                      className="doc-textarea"
+                    />
+                    <button type="button" onClick={() => void updateDoc(selectedDoc.docId, docMarkdownDraft)}>
+                      Save document
+                    </button>
+                  </article>
+
+                  <article className="card doc-preview">
+                    <h3>Preview</h3>
+                    <pre>{docMarkdownDraft}</pre>
+                  </article>
+
+                  <article className="card doc-comments">
+                    <h3>Comments</h3>
+                    <ul>
+                      {(workspace.docComments[selectedDoc.docId] ?? []).map((comment) => (
+                        <li key={comment.commentId}>
+                          <p>{comment.body}</p>
+                          <span>{formatTimestamp(comment.createdAt)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <form
+                      className="stack-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void addDocComment(selectedDoc.docId, commentBody);
+                        setCommentBody("");
+                      }}
+                    >
+                      <textarea
+                        value={commentBody}
+                        onChange={(event) => setCommentBody(event.target.value)}
+                        placeholder="Add comment"
+                        required
+                      />
+                      <button type="submit">Comment</button>
+                    </form>
+                  </article>
+                </section>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+};
+
+const SettingsScreen = (): JSX.Element => {
+  const bootstrap = useAppStore((state) => state.bootstrap);
+  const updateSettings = useAppStore((state) => state.updateSettings);
+  const clearConnection = useAppStore((state) => state.clearConnection);
+  const navigateProjects = useAppStore((state) => state.navigateProjects);
+
+  const [displayName, setDisplayName] = useState(bootstrap?.settings?.displayName ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(bootstrap?.settings?.avatarUrl ?? "");
+  const [serverUrl, setServerUrl] = useState(bootstrap?.settings?.serverUrl ?? "http://127.0.0.1:4000");
+  const [serverAccessPassword, setServerAccessPassword] = useState("");
+
+  return (
+    <main className="screen settings-screen">
+      <section className="card settings-card">
+        <h1>User Settings</h1>
+        <form
+          className="stack-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void updateSettings({
+              displayName,
+              avatarUrl,
+              serverUrl,
+              serverAccessPassword,
+            });
+          }}
+        >
+          <label>
+            <span>Display name</span>
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
+          </label>
+
+          <label>
+            <span>Avatar URL (optional)</span>
+            <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} />
+          </label>
+
+          <label>
+            <span>Server URL</span>
+            <input value={serverUrl} onChange={(event) => setServerUrl(event.target.value)} required />
+          </label>
+
+          <label>
+            <span>Server access password</span>
+            <input
+              value={serverAccessPassword}
+              onChange={(event) => setServerAccessPassword(event.target.value)}
+              required
+              type="password"
+            />
+          </label>
+
+          <div className="actions-row">
+            <button type="button" onClick={navigateProjects}>
+              Back
+            </button>
+            <button type="submit">Save settings</button>
+            <button type="button" className="danger" onClick={() => void clearConnection()}>
+              Disconnect
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+  );
+};
+
+export default function App(): JSX.Element {
+  const screen = useAppStore((state) => state.screen);
+  const initialize = useAppStore((state) => state.initialize);
+  const loading = useAppStore((state) => state.loading);
+  const error = useAppStore((state) => state.error);
+  const dismissError = useAppStore((state) => state.dismissError);
+
+  useEffect(() => {
+    void initialize();
+  }, [initialize]);
+
+  return (
+    <>
+      {error !== null && (
+        <aside className="error-toast" role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={dismissError}>
+            Close
+          </button>
+        </aside>
+      )}
+
+      {loading && <div className="loading-bar">Working...</div>}
+
+      {screen === "setup" && <SetupScreen />}
+      {screen === "projects" && <ProjectsScreen />}
+      {screen === "workspace" && <WorkspaceScreen />}
+      {screen === "settings" && <SettingsScreen />}
+      {screen === "loading" && (
+        <main className="screen">
+          <p className="muted">Loading...</p>
+        </main>
+      )}
+    </>
   );
 }
