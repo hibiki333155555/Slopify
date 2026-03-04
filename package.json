@@ -1,0 +1,16 @@
+{
+  "name": "slopify",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev:desktop": "npm run -w apps/desktop dev",
+    "dev:sync-server": "npm run -w apps/sync-server dev"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}

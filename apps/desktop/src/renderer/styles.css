@@ -1,0 +1,414 @@
+:root {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color: #102431;
+  background: linear-gradient(160deg, #f4f8ff 0%, #f8fbf4 52%, #fff8f0 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.loading-screen,
+.first-launch {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.profile-form {
+  display: grid;
+  gap: 12px;
+  width: min(420px, 100%);
+  background: #ffffffcc;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #dde6f0;
+}
+
+.profile-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.profile-form input,
+.profile-form button {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #bfcfdd;
+  padding: 0 10px;
+}
+
+.profile-form button {
+  background: #164b73;
+  color: #fff;
+  border: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+}
+
+.sidebar {
+  border-right: 1px solid #dbe5ef;
+  background: #fffdfacc;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 12px;
+  padding: 14px;
+}
+
+.sidebar-header h2 {
+  margin: 0;
+}
+
+.sidebar-header p {
+  margin: 4px 0 0;
+  color: #47667d;
+}
+
+.sync-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-row .online {
+  color: #106b2f;
+}
+
+.sync-row .offline {
+  color: #7a2b1d;
+}
+
+.create-project-form {
+  display: grid;
+  gap: 8px;
+  background: #f6fbff;
+  border: 1px solid #d7e7f4;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.create-project-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.create-project-form input,
+.create-project-form select,
+.create-project-form button {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #bfd0de;
+  padding: 0 8px;
+}
+
+.create-project-form button {
+  background: #164b73;
+  color: #fff;
+  border: 0;
+}
+
+.status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.status-tabs button {
+  border: 1px solid #bfd0de;
+  background: #fff;
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.status-tabs button.active {
+  background: #164b73;
+  color: #fff;
+  border-color: #164b73;
+}
+
+.project-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.project-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #d6e2ed;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.project-item.active {
+  border-color: #164b73;
+  background: #eef5fd;
+}
+
+.project-name {
+  font-weight: 600;
+}
+
+.project-meta {
+  font-size: 0.82rem;
+  color: #4e677c;
+}
+
+.empty {
+  border: 1px dashed #bfd0de;
+  border-radius: 10px;
+  padding: 10px;
+  color: #4e677c;
+}
+
+.room {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-height: 100vh;
+}
+
+.room-header {
+  border-bottom: 1px solid #dbe5ef;
+  background: #ffffffb8;
+  padding: 14px 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.room-header h1 {
+  margin: 0;
+}
+
+.room-header p {
+  margin: 4px 0 0;
+  color: #567185;
+}
+
+.room-stats {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.latest-decisions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.timeline-filters {
+  border-bottom: 1px solid #dbe5ef;
+  background: #f8fbfe;
+  padding: 8px 16px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.timeline-filters button {
+  border: 1px solid #bfd0de;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.timeline-filters button.active {
+  background: #164b73;
+  color: #fff;
+  border-color: #164b73;
+}
+
+.timeline {
+  overflow: auto;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.load-older {
+  justify-self: center;
+  border: 1px solid #bfd0de;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+
+.timeline-group {
+  display: grid;
+  gap: 8px;
+}
+
+.timeline-group h3 {
+  margin: 0;
+  color: #4a6276;
+}
+
+.event-card {
+  border-radius: 10px;
+  border: 1px solid #d6e3ef;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.event-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.86rem;
+  color: #526f83;
+}
+
+.event-card.message {
+  border-left: 4px solid #6a9ac0;
+}
+
+.event-card.decision {
+  border-left: 4px solid #d0812c;
+  background: #fff9f2;
+}
+
+.event-card.task {
+  border-left: 4px solid #2d8759;
+  background: #f6fcf8;
+}
+
+.event-card.system {
+  border-left: 4px solid #b8c7d5;
+  background: #f5f9fc;
+}
+
+.event-card button {
+  justify-self: start;
+  border: 1px solid #bfd0de;
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px 8px;
+}
+
+.open-task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.composer {
+  border-top: 1px solid #dbe5ef;
+  background: #ffffffde;
+  padding: 12px 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.composer-modes {
+  display: flex;
+  gap: 6px;
+}
+
+.composer-modes button {
+  border: 1px solid #bfd0de;
+  border-radius: 999px;
+  background: #fff;
+  padding: 4px 10px;
+}
+
+.composer-modes button.active {
+  background: #164b73;
+  color: #fff;
+  border-color: #164b73;
+}
+
+.composer textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.composer input,
+.composer textarea,
+.composer button {
+  border: 1px solid #bfd0de;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.composer button[type="submit"] {
+  justify-self: end;
+  min-width: 120px;
+  background: #164b73;
+  color: #fff;
+  border: 0;
+}
+
+.composer-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.empty-room {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  color: #4e677c;
+}
+
+.error,
+.error-banner {
+  color: #7a2b1d;
+}
+
+.error-banner {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  background: #ffe8e2;
+  border: 1px solid #e3ada0;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    grid-template-rows: auto auto auto auto;
+    border-right: 0;
+    border-bottom: 1px solid #dbe5ef;
+  }
+
+  .room {
+    min-height: 0;
+  }
+}
