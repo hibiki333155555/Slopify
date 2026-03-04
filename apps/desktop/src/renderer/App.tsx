@@ -1,13 +1,20 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { getSelectedDoc, useAppStore } from "./store.js";
 
-const formatTimestamp = (timestamp: number): string =>
+const formatDateTime = (timestamp: number): string =>
   new Date(timestamp).toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+
+const formatTime = (timestamp: number): string =>
+  new Date(timestamp).toLocaleString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   });
 
 const SetupScreen = (): JSX.Element => {
@@ -140,7 +147,7 @@ const ProjectsScreen = (): JSX.Element => {
                   <button type="button" className="project-item" onClick={() => void openProject(project.projectId)}>
                     <strong>{project.name}</strong>
                     <span>{project.memberCount} members</span>
-                    <span>Last activity {formatTimestamp(project.lastActivityAt)}</span>
+                    <span>Last activity {formatDateTime(project.lastActivityAt)}</span>
                   </button>
                 </li>
               ))}
@@ -177,55 +184,32 @@ const ProjectsScreen = (): JSX.Element => {
 const WorkspaceScreen = (): JSX.Element => {
   const workspace = useAppStore((state) => state.activeWorkspace);
   const navigateProjects = useAppStore((state) => state.navigateProjects);
-  const createInvite = useAppStore((state) => state.createInvite);
-  const inviteCode = useAppStore((state) => state.inviteCode);
 
   const selectChatChannel = useAppStore((state) => state.selectChatChannel);
   const selectDoc = useAppStore((state) => state.selectDoc);
   const createChannel = useAppStore((state) => state.createChannel);
 
   const postMessage = useAppStore((state) => state.postMessage);
-  const recordDecision = useAppStore((state) => state.recordDecision);
-  const createTask = useAppStore((state) => state.createTask);
-  const setTaskStatus = useAppStore((state) => state.setTaskStatus);
 
   const createDoc = useAppStore((state) => state.createDoc);
-  const renameDoc = useAppStore((state) => state.renameDoc);
   const updateDoc = useAppStore((state) => state.updateDoc);
   const addDocComment = useAppStore((state) => state.addDocComment);
 
   const [channelName, setChannelName] = useState("");
   const [docTitle, setDocTitle] = useState("");
-  const [docRenameTitle, setDocRenameTitle] = useState("");
   const [messageBody, setMessageBody] = useState("");
-  const [decisionTitle, setDecisionTitle] = useState("");
-  const [decisionBody, setDecisionBody] = useState("");
-  const [taskTitle, setTaskTitle] = useState("");
   const [commentBody, setCommentBody] = useState("");
 
   const selectedDoc = getSelectedDoc(workspace);
   const [docMarkdownDraft, setDocMarkdownDraft] = useState("");
+  const [isDocEditing, setIsDocEditing] = useState(false);
 
   useEffect(() => {
     if (selectedDoc !== null) {
       setDocMarkdownDraft(selectedDoc.markdown);
-      setDocRenameTitle(selectedDoc.title);
+      setIsDocEditing(false);
     }
-  }, [selectedDoc?.docId, selectedDoc?.markdown, selectedDoc?.title]);
-
-  const channelTasks = useMemo(() => {
-    if (workspace === null || workspace.selectedType !== "chat") {
-      return [];
-    }
-    return workspace.data.tasks.filter((task) => task.chatChannelId === workspace.selectedItemId);
-  }, [workspace]);
-
-  const channelDecisions = useMemo(() => {
-    if (workspace === null || workspace.selectedType !== "chat") {
-      return [];
-    }
-    return workspace.data.decisions.filter((decision) => decision.chatChannelId === workspace.selectedItemId);
-  }, [workspace]);
+  }, [selectedDoc?.docId, selectedDoc?.markdown]);
 
   if (workspace === null) {
     return (
@@ -235,20 +219,17 @@ const WorkspaceScreen = (): JSX.Element => {
     );
   }
 
+  const selectedChannelName =
+    workspace.data.channels.find((channel) => channel.chatChannelId === workspace.selectedItemId)?.name ?? "general";
+
   return (
     <main className="screen workspace-screen">
       <header className="topbar">
         <div>
           <button type="button" className="link-btn" onClick={navigateProjects}>
-            Back to Projects
+            Home
           </button>
-          <h1>{workspace.data.project.name}</h1>
-        </div>
-        <div className="topbar-actions">
-          <button type="button" onClick={() => void createInvite()}>
-            Create Invite
-          </button>
-          {inviteCode !== null && <span className="pill">Invite: {inviteCode}</span>}
+          <h1 className="workspace-title">{workspace.data.project.name}</h1>
         </div>
       </header>
 
@@ -327,181 +308,126 @@ const WorkspaceScreen = (): JSX.Element => {
 
         <section className="workspace-main">
           {workspace.selectedType === "chat" ? (
-            <>
-              <section className="card timeline-card">
-                <h2>Chat timeline</h2>
-                <ul className="timeline-list">
-                  {workspace.timeline.map((entry) => (
-                    <li key={entry.id}>
-                      <header>
+            <section className="discord-chat-shell">
+              <header className="discord-chat-header">
+                <strong>#{selectedChannelName}</strong>
+              </header>
+
+              <ul className="discord-messages">
+                {workspace.timeline.map((entry) => (
+                  <li key={entry.id} className="discord-message">
+                    <div className="discord-avatar" aria-hidden="true">
+                      {(entry.actorDisplayName[0] ?? "?").toUpperCase()}
+                    </div>
+                    <div className="discord-message-body">
+                      <div className="discord-message-meta">
                         <strong>{entry.actorDisplayName}</strong>
-                        <span>{formatTimestamp(entry.createdAt)}</span>
-                      </header>
+                        <span>{formatTime(entry.createdAt)}</span>
+                      </div>
                       <p>{entry.timelineText}</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-              <section className="card composer-card">
-                <h2>Post Message</h2>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void postMessage(messageBody);
-                    setMessageBody("");
-                  }}
-                  className="stack-form"
-                >
-                  <textarea
-                    value={messageBody}
-                    onChange={(event) => setMessageBody(event.target.value)}
-                    placeholder="Type a message"
-                    required
-                  />
-                  <button type="submit">Send message</button>
-                </form>
-
-                <h2>Record Decision</h2>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void recordDecision(decisionTitle, decisionBody);
-                    setDecisionTitle("");
-                    setDecisionBody("");
-                  }}
-                  className="stack-form"
-                >
-                  <input
-                    value={decisionTitle}
-                    onChange={(event) => setDecisionTitle(event.target.value)}
-                    placeholder="Decision title"
-                    required
-                  />
-                  <textarea
-                    value={decisionBody}
-                    onChange={(event) => setDecisionBody(event.target.value)}
-                    placeholder="Decision detail"
-                    required
-                  />
-                  <button type="submit">Record decision</button>
-                </form>
-
-                <h2>Create Task</h2>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void createTask(taskTitle);
-                    setTaskTitle("");
-                  }}
-                  className="stack-form"
-                >
-                  <input
-                    value={taskTitle}
-                    onChange={(event) => setTaskTitle(event.target.value)}
-                    placeholder="Task title"
-                    required
-                  />
-                  <button type="submit">Create task</button>
-                </form>
-
-                <h2>Tasks</h2>
-                <ul className="task-list">
-                  {channelTasks.map((task) => (
-                    <li key={task.taskId}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={task.completed}
-                          onChange={(event) => void setTaskStatus(task.taskId, event.target.checked)}
-                        />
-                        <span className={task.completed ? "done" : ""}>{task.title}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-
-                <h2>Decisions</h2>
-                <ul className="decision-list">
-                  {channelDecisions.map((decision) => (
-                    <li key={decision.decisionId}>
-                      <strong>{decision.title}</strong>
-                      <p>{decision.body}</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </>
+              <form
+                className="discord-composer"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const body = messageBody.trim();
+                  if (body.length === 0) {
+                    return;
+                  }
+                  void postMessage(body);
+                  setMessageBody("");
+                }}
+              >
+                <input
+                  value={messageBody}
+                  onChange={(event) => setMessageBody(event.target.value)}
+                  placeholder={`Message #${selectedChannelName}`}
+                />
+              </form>
+            </section>
           ) : (
-            <>
-              <section className="card doc-header">
-                <h2>Document</h2>
-                {selectedDoc !== null && (
+            selectedDoc !== null && (
+              <section className="doc-layout">
+                <article className="card doc-main">
+                  <div className="doc-main-toolbar">
+                    <strong>{selectedDoc.title}</strong>
+                    {isDocEditing ? (
+                      <div className="actions-row">
+                        <button type="button" onClick={() => setIsDocEditing(false)}>
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void updateDoc(selectedDoc.docId, docMarkdownDraft);
+                            setIsDocEditing(false);
+                          }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setIsDocEditing(true)}>
+                        Edit
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="doc-surface">
+                    {isDocEditing ? (
+                      <textarea
+                        value={docMarkdownDraft}
+                        onChange={(event) => setDocMarkdownDraft(event.target.value)}
+                        className="doc-textarea"
+                      />
+                    ) : (
+                      <pre>{docMarkdownDraft}</pre>
+                    )}
+                  </div>
+                </article>
+
+                <article className="card doc-comments-pane">
+                  <ul className="doc-comment-feed">
+                    {(workspace.docComments[selectedDoc.docId] ?? []).map((comment) => (
+                      <li key={comment.commentId} className="doc-comment-item">
+                        <div className="doc-comment-avatar" aria-hidden="true">
+                          C
+                        </div>
+                        <div className="doc-comment-body">
+                          <div className="doc-comment-meta">
+                            <strong>Member</strong>
+                            <span>{formatTime(comment.createdAt)}</span>
+                          </div>
+                          <p>{comment.body}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                   <form
-                    className="inline-form"
+                    className="discord-composer"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      void renameDoc(selectedDoc.docId, docRenameTitle);
+                      const body = commentBody.trim();
+                      if (body.length === 0) {
+                        return;
+                      }
+                      void addDocComment(selectedDoc.docId, body);
+                      setCommentBody("");
                     }}
                   >
                     <input
-                      value={docRenameTitle}
-                      onChange={(event) => setDocRenameTitle(event.target.value)}
+                      value={commentBody}
+                      onChange={(event) => setCommentBody(event.target.value)}
+                      placeholder="Add a comment"
                     />
-                    <button type="submit">Rename</button>
                   </form>
-                )}
+                </article>
               </section>
-
-              {selectedDoc !== null && (
-                <section className="doc-layout">
-                  <article className="card doc-editor">
-                    <h3>Markdown</h3>
-                    <textarea
-                      value={docMarkdownDraft}
-                      onChange={(event) => setDocMarkdownDraft(event.target.value)}
-                      className="doc-textarea"
-                    />
-                    <button type="button" onClick={() => void updateDoc(selectedDoc.docId, docMarkdownDraft)}>
-                      Save document
-                    </button>
-                  </article>
-
-                  <article className="card doc-preview">
-                    <h3>Preview</h3>
-                    <pre>{docMarkdownDraft}</pre>
-                  </article>
-
-                  <article className="card doc-comments">
-                    <h3>Comments</h3>
-                    <ul>
-                      {(workspace.docComments[selectedDoc.docId] ?? []).map((comment) => (
-                        <li key={comment.commentId}>
-                          <p>{comment.body}</p>
-                          <span>{formatTimestamp(comment.createdAt)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <form
-                      className="stack-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void addDocComment(selectedDoc.docId, commentBody);
-                        setCommentBody("");
-                      }}
-                    >
-                      <textarea
-                        value={commentBody}
-                        onChange={(event) => setCommentBody(event.target.value)}
-                        placeholder="Add comment"
-                        required
-                      />
-                      <button type="submit">Comment</button>
-                    </form>
-                  </article>
-                </section>
-              )}
-            </>
+            )
           )}
         </section>
       </div>

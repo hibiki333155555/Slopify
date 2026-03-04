@@ -159,12 +159,16 @@ button.danger {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 1rem;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace-sidebar {
   display: grid;
   gap: 1rem;
   align-content: start;
+  min-height: 0;
+  overflow: auto;
 }
 
 .nav-card button {
@@ -190,7 +194,8 @@ button.danger {
 .workspace-main {
   display: grid;
   gap: 1rem;
-  align-content: start;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .timeline-card {
@@ -214,6 +219,100 @@ button.danger {
   font-size: 0.85rem;
 }
 
+.discord-chat-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 0;
+  height: 100%;
+  background: #313338;
+  border: 1px solid #3f4147;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.discord-chat-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #26282c;
+  color: #f2f3f5;
+  background: #2b2d31;
+}
+
+.discord-messages {
+  list-style: none;
+  margin: 0;
+  padding: 0.85rem 0;
+  overflow: auto;
+  min-height: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.discord-message {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 0.7rem;
+  padding: 0.35rem 1rem;
+}
+
+.discord-message:hover {
+  background: #2f3136;
+}
+
+.discord-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #5865f2;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.discord-message-body p {
+  margin: 0.15rem 0 0;
+  color: #dbdee1;
+  white-space: pre-wrap;
+}
+
+.discord-message-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.discord-message-meta strong {
+  color: #f2f3f5;
+}
+
+.discord-message-meta span {
+  color: #aeb4bb;
+  font-size: 0.75rem;
+}
+
+.discord-composer {
+  padding: 0.9rem 1rem 1rem;
+  border-top: 1px solid #26282c;
+  background: #313338;
+}
+
+.discord-composer input {
+  border: none;
+  border-radius: 8px;
+  padding: 0.72rem 0.85rem;
+  background: #383a40;
+  color: #f2f3f5;
+}
+
+.discord-composer input::placeholder {
+  color: #aeb4bb;
+}
+
+.discord-composer input:focus {
+  outline: 2px solid #5865f2;
+}
+
 .done {
   text-decoration: line-through;
   color: #6b768a;
@@ -221,17 +320,136 @@ button.danger {
 
 .doc-layout {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.8fr;
+  grid-template-columns: 2fr 1fr;
   gap: 1rem;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.doc-main {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.doc-main-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.doc-surface {
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #d6deeb;
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.doc-surface pre {
+  margin: 0;
+  padding: 0.75rem;
+  white-space: pre-wrap;
 }
 
 .doc-textarea {
-  min-height: 320px;
+  min-height: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  resize: none;
 }
 
-.doc-preview pre {
-  white-space: pre-wrap;
+.doc-comments-pane {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #313338cc;
+  border-color: #3f4147;
+}
+
+.doc-comment-feed {
+  list-style: none;
   margin: 0;
+  padding: 0.75rem 0;
+  overflow: auto;
+  min-height: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.doc-comment-item {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 0.55rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.doc-comment-item:hover {
+  background: #2f3136;
+}
+
+.doc-comment-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #5865f2;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.doc-comment-body p {
+  margin: 0.12rem 0 0;
+  color: #dbdee1;
+  white-space: pre-wrap;
+}
+
+.doc-comment-meta {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+}
+
+.doc-comment-meta strong {
+  color: #f2f3f5;
+  font-size: 0.85rem;
+}
+
+.doc-comment-meta span {
+  color: #aeb4bb;
+  font-size: 0.72rem;
+}
+
+.doc-comments-pane .discord-composer {
+  background: transparent;
+  border-top: 1px solid #26282c;
+}
+
+.workspace-screen {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.75rem;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-screen .topbar {
+  margin: 0;
+}
+
+.workspace-title {
+  margin: 0.2rem 0 0;
+  font-size: 1.2rem;
+  line-height: 1.2;
 }
 
 .actions-row {
