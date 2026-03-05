@@ -3,7 +3,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN npm ci
+RUN npm install --workspaces --include-workspace-root
 
 RUN npm run -w packages/shared build && npm run -w apps/sync-server build
 
