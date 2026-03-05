@@ -331,6 +331,7 @@ const WorkspaceScreen = (): JSX.Element => {
   const [decisionBody, setDecisionBody] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [decisionsOpen, setDecisionsOpen] = useState(true);
   const [decisionWidth, setDecisionWidth] = useState(320);
   const [resizing, setResizing] = useState(false);
@@ -564,7 +565,12 @@ const WorkspaceScreen = (): JSX.Element => {
                           <span className="text-[10px] font-mono text-zinc-600">{formatTime(entry.createdAt)}</span>
                         </div>
                         {typeof entry.payload?.imageDataUrl === "string" && (
-                          <img src={entry.payload.imageDataUrl as string} alt="" className="mt-1 max-w-xs max-h-60 rounded-md border border-zinc-700/40" />
+                          <img
+                            src={entry.payload.imageDataUrl as string}
+                            alt=""
+                            className="mt-1 max-w-xs max-h-60 rounded-md border border-zinc-700/40 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setLightboxSrc(entry.payload!.imageDataUrl as string)}
+                          />
                         )}
                         {entry.timelineText && (
                           <div
@@ -822,6 +828,21 @@ const WorkspaceScreen = (): JSX.Element => {
           )}
         </section>
       </div>
+
+      {/* Image lightbox */}
+      {lightboxSrc !== null && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <img
+            src={lightboxSrc}
+            alt=""
+            className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </main>
   );
 };
