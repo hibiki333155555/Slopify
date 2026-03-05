@@ -22,6 +22,7 @@
     "@slopify/shared": "file:../../packages/shared",
     "better-sqlite3": "^11.5.0",
     "drizzle-orm": "^0.34.1",
+    "marked": "^17.0.4",
     "socket.io-client": "^4.8.0",
     "ulid": "^2.3.0",
     "zod": "^3.23.8"
