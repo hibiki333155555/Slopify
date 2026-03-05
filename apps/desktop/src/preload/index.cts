@@ -33,6 +33,7 @@ const api: DesktopApi = {
 
   getSyncStatus: async () => await ipcRenderer.invoke("get-sync-status"),
   syncNow: async () => await ipcRenderer.invoke("sync-now"),
+  readClipboardImage: async () => await ipcRenderer.invoke("read-clipboard-image"),
 
   onSyncStatus: (listener: (status: SyncStatus) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: SyncStatus): void => {

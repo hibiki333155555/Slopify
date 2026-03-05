@@ -50,7 +50,7 @@ type AppState = {
   selectDoc: (docId: string) => Promise<void>;
   createChannel: (name: string) => Promise<void>;
 
-  postMessage: (body: string) => Promise<void>;
+  postMessage: (body: string, imageDataUrl?: string) => Promise<void>;
   recordDecision: (title: string, body: string) => Promise<void>;
   createTask: (title: string) => Promise<void>;
   setTaskStatus: (taskId: string, completed: boolean) => Promise<void>;
@@ -272,7 +272,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  postMessage: async (body) => {
+  postMessage: async (body, imageDataUrl) => {
     await withBusy(set, async () => {
       const workspace = get().activeWorkspace;
       if (workspace === null || workspace.selectedType !== "chat") {
@@ -282,6 +282,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         projectId: workspace.projectId,
         chatChannelId: workspace.selectedItemId,
         body,
+        imageDataUrl,
       });
       await get().selectChatChannel(workspace.selectedItemId);
     });

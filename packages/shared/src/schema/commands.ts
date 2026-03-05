@@ -36,7 +36,8 @@ export const renameChatChannelCommandSchema = z.object({
 export const postMessageCommandSchema = z.object({
   projectId: ulidSchema,
   chatChannelId: ulidSchema,
-  body: nonEmptyTrimmedStringSchema,
+  body: z.string().trim(),
+  imageDataUrl: z.string().optional(),
 });
 
 export const recordDecisionCommandSchema = z.object({

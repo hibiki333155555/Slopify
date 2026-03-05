@@ -44,7 +44,8 @@ export const chatRenamedPayloadSchema = z.object({
 
 export const messagePostedPayloadSchema = z.object({
   chatChannelId: ulidSchema,
-  body: nonEmptyTrimmedStringSchema,
+  body: z.string(),
+  imageDataUrl: z.string().optional(),
 });
 
 export const decisionRecordedPayloadSchema = z.object({

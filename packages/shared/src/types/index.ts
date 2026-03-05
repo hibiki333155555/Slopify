@@ -75,6 +75,7 @@ export interface DesktopApi {
 
   getSyncStatus(): Promise<SyncStatus>;
   syncNow(): Promise<void>;
+  readClipboardImage(): Promise<string | null>;
 
   onSyncStatus(listener: (status: SyncStatus) => void): () => void;
   onWorkspaceChanged(listener: (projectId: string) => void): () => void;

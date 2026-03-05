@@ -228,7 +228,7 @@ const ProjectsScreen = (): JSX.Element => {
                     onClick={() => void openProject(project.projectId)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left hover:bg-zinc-800/50 transition-colors group"
                   >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${project.unreadCount > 0 ? "bg-emerald-400" : "bg-zinc-700"}`} />
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-medium text-zinc-200 group-hover:text-zinc-100 truncate">
                         {project.name}
@@ -237,6 +237,11 @@ const ProjectsScreen = (): JSX.Element => {
                         {project.memberCount} members · {formatDateTime(project.lastActivityAt)}
                       </div>
                     </div>
+                    {project.unreadCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-400 shrink-0">
+                        {project.unreadCount}
+                      </span>
+                    )}
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-700 group-hover:text-zinc-500 shrink-0">
                       <path d="M6 3l5 5-5 5" />
                     </svg>
@@ -319,6 +324,7 @@ const WorkspaceScreen = (): JSX.Element => {
   const [decisionTitle, setDecisionTitle] = useState("");
   const [decisionBody, setDecisionBody] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
 
   const selectedDoc = getSelectedDoc(workspace);
   const [docMarkdownDraft, setDocMarkdownDraft] = useState("");
@@ -507,7 +513,12 @@ const WorkspaceScreen = (): JSX.Element => {
                           <span className="text-xs font-medium text-zinc-200">{entry.actorDisplayName}</span>
                           <span className="text-[10px] font-mono text-zinc-600">{formatTime(entry.createdAt)}</span>
                         </div>
-                        <p className="text-xs text-zinc-400 mt-0.5 whitespace-pre-wrap break-words">{entry.timelineText}</p>
+                        {typeof entry.payload?.imageDataUrl === "string" && (
+                          <img src={entry.payload.imageDataUrl as string} alt="" className="mt-1 max-w-xs max-h-60 rounded-md border border-zinc-700/40" />
+                        )}
+                        {entry.timelineText && (
+                          <p className="text-xs text-zinc-400 mt-0.5 whitespace-pre-wrap break-words">{entry.timelineText}</p>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -515,27 +526,76 @@ const WorkspaceScreen = (): JSX.Element => {
 
                 {/* Composer */}
                 <form
-                  className="px-4 py-3 border-t border-zinc-800/60 shrink-0 flex gap-2"
+                  className="px-4 py-3 border-t border-zinc-800/60 shrink-0"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const body = messageBody.trim();
-                    if (body.length === 0) return;
-                    void postMessage(body);
+                    if (body.length === 0 && pendingImage === null) return;
+                    void postMessage(body, pendingImage ?? undefined);
                     setMessageBody("");
+                    setPendingImage(null);
                   }}
                 >
-                  <input
-                    value={messageBody}
-                    onChange={(e) => setMessageBody(e.target.value)}
-                    placeholder="Type a message"
-                    className="flex-1 px-3 py-2 bg-zinc-800/80 border border-zinc-700/60 rounded-md text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-2 text-xs font-medium bg-zinc-100 text-zinc-900 rounded-md hover:bg-zinc-200 transition-colors shrink-0"
-                  >
-                    Send message
-                  </button>
+                  {pendingImage !== null && (
+                    <div className="mb-2 relative inline-block">
+                      <img src={pendingImage} alt="preview" className="max-h-32 rounded-md border border-zinc-700/40" />
+                      <button
+                        type="button"
+                        onClick={() => setPendingImage(null)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-700 text-zinc-300 text-[10px] flex items-center justify-center hover:bg-zinc-600 transition-colors"
+                      >
+                        x
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      value={messageBody}
+                      onChange={(e) => setMessageBody(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.ctrlKey && e.key === "v") {
+                          e.preventDefault();
+                          void window.desktopApi.readClipboardImage().then((dataUrl) => {
+                            if (dataUrl !== null) {
+                              setPendingImage(dataUrl);
+                            } else {
+                              void navigator.clipboard.readText().then((text) => {
+                                if (text) setMessageBody((prev) => prev + text);
+                              });
+                            }
+                          });
+                        }
+                      }}
+                      placeholder="Type a message"
+                      className="flex-1 px-3 py-2 bg-zinc-800/80 border border-zinc-700/60 rounded-md text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                    />
+                    <label className="px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors shrink-0 cursor-pointer flex items-center">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <rect x="2" y="2" width="12" height="12" rx="2" />
+                        <circle cx="5.5" cy="5.5" r="1" fill="currentColor" />
+                        <path d="M2 11l3-3 2 2 3-3 4 4" />
+                      </svg>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file === undefined) return;
+                          const reader = new FileReader();
+                          reader.onload = () => setPendingImage(reader.result as string);
+                          reader.readAsDataURL(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="px-3 py-2 text-xs font-medium bg-zinc-100 text-zinc-900 rounded-md hover:bg-zinc-200 transition-colors shrink-0"
+                    >
+                      Send message
+                    </button>
+                  </div>
                 </form>
               </div>
 

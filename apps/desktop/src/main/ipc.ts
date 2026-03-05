@@ -1,4 +1,8 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { BrowserWindow, clipboard, ipcMain } from "electron";
 import type {
   AddDocCommentCommand,
   CreateChatChannelCommand,
@@ -58,6 +62,34 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
 
   ipcMain.handle("get-sync-status", async () => await repository.getSyncStatus());
   ipcMain.handle("sync-now", async () => await repository.syncNow());
+  ipcMain.handle("read-clipboard-image", () => {
+    // Try Electron native clipboard first
+    const img = clipboard.readImage();
+    if (!img.isEmpty()) return img.toDataURL();
+
+    // WSL2 fallback: read Windows clipboard via PowerShell script
+    try {
+      const scriptPath = path.join(os.tmpdir(), "slopify-clipboard.ps1");
+      fs.writeFileSync(
+        scriptPath,
+        `Add-Type -AssemblyName System.Windows.Forms
+$img = [System.Windows.Forms.Clipboard]::GetImage()
+if ($img) {
+  $ms = New-Object System.IO.MemoryStream
+  $img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+  [Convert]::ToBase64String($ms.ToArray())
+}`,
+      );
+      const b64 = execSync(
+        `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w '${scriptPath}')"`,
+        { encoding: "utf8", timeout: 10000, stdio: ["pipe", "pipe", "pipe"] },
+      ).trim();
+      if (b64.length > 0) return `data:image/png;base64,${b64}`;
+    } catch {
+      // PowerShell not available or no image
+    }
+    return null;
+  });
 
   repository.onSyncStatus((status) => {
     sendToAll("sync-status", status);
