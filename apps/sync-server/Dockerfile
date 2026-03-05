@@ -5,7 +5,9 @@ COPY . .
 
 RUN npm install --workspaces --include-workspace-root
 
-RUN npm run -w packages/shared build && npm run -w apps/sync-server build
+RUN rm -f packages/shared/tsconfig.tsbuildinfo apps/sync-server/tsconfig.tsbuildinfo \
+    && npm run -w packages/shared build \
+    && npm run -w apps/sync-server build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
