@@ -50,7 +50,9 @@ type AppState = {
   selectDoc: (docId: string) => Promise<void>;
   createChannel: (name: string) => Promise<void>;
 
-  postMessage: (body: string, imageDataUrl?: string) => Promise<void>;
+  postMessage: (body: string, imageDataUrl?: string, replyToEventId?: string) => Promise<void>;
+  addReaction: (messageEventId: string, emoji: string) => Promise<void>;
+  removeReaction: (messageEventId: string, emoji: string) => Promise<void>;
   recordDecision: (title: string, body: string) => Promise<void>;
   createTask: (title: string) => Promise<void>;
   setTaskStatus: (taskId: string, completed: boolean) => Promise<void>;
@@ -272,7 +274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  postMessage: async (body, imageDataUrl) => {
+  postMessage: async (body, imageDataUrl, replyToEventId) => {
     await withBusy(set, async () => {
       const workspace = get().activeWorkspace;
       if (workspace === null || workspace.selectedType !== "chat") {
@@ -283,6 +285,39 @@ export const useAppStore = create<AppState>((set, get) => ({
         chatChannelId: workspace.selectedItemId,
         body,
         imageDataUrl,
+        replyToEventId,
+      });
+      await get().selectChatChannel(workspace.selectedItemId);
+    });
+  },
+
+  addReaction: async (messageEventId, emoji) => {
+    await withBusy(set, async () => {
+      const workspace = get().activeWorkspace;
+      if (workspace === null || workspace.selectedType !== "chat") {
+        return;
+      }
+      await window.desktopApi.addReaction({
+        projectId: workspace.projectId,
+        chatChannelId: workspace.selectedItemId,
+        messageEventId,
+        emoji,
+      });
+      await get().selectChatChannel(workspace.selectedItemId);
+    });
+  },
+
+  removeReaction: async (messageEventId, emoji) => {
+    await withBusy(set, async () => {
+      const workspace = get().activeWorkspace;
+      if (workspace === null || workspace.selectedType !== "chat") {
+        return;
+      }
+      await window.desktopApi.removeReaction({
+        projectId: workspace.projectId,
+        chatChannelId: workspace.selectedItemId,
+        messageEventId,
+        emoji,
       });
       await get().selectChatChannel(workspace.selectedItemId);
     });

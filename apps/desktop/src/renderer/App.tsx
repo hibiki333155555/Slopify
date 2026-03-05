@@ -315,6 +315,8 @@ const WorkspaceScreen = (): JSX.Element => {
   const createChannel = useAppStore((state) => state.createChannel);
 
   const postMessage = useAppStore((state) => state.postMessage);
+  const addReaction = useAppStore((state) => state.addReaction);
+  const removeReaction = useAppStore((state) => state.removeReaction);
   const recordDecision = useAppStore((state) => state.recordDecision);
   const createTask = useAppStore((state) => state.createTask);
   const setTaskStatus = useAppStore((state) => state.setTaskStatus);
@@ -331,6 +333,8 @@ const WorkspaceScreen = (): JSX.Element => {
   const [decisionBody, setDecisionBody] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; actorDisplayName: string; text: string } | null>(null);
+  const [emojiPickerFor, setEmojiPickerFor] = useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [decisionsOpen, setDecisionsOpen] = useState(true);
   const [decisionWidth, setDecisionWidth] = useState(320);
@@ -555,15 +559,22 @@ const WorkspaceScreen = (): JSX.Element => {
                 {/* Messages */}
                 <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
                   {workspace.timeline.map((entry) => (
-                    <li key={entry.id} className="flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
+                    <li key={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
                       <div className="w-8 h-8 rounded-full bg-violet-500/80 flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-0.5">
                         {(entry.actorDisplayName[0] ?? "?").toUpperCase()}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-xs font-medium text-zinc-200">{entry.actorDisplayName}</span>
                           <span className="text-[10px] font-mono text-zinc-600">{formatTime(entry.createdAt)}</span>
                         </div>
+                        {/* Reply preview */}
+                        {entry.replyPreview && (
+                          <div className="mt-1 mb-1 pl-2 border-l-2 border-zinc-700 text-[11px] text-zinc-500">
+                            <span className="font-medium text-zinc-400">{entry.replyPreview.actorDisplayName}</span>{" "}
+                            <span className="truncate">{entry.replyPreview.text.length > 80 ? entry.replyPreview.text.slice(0, 80) + "..." : entry.replyPreview.text}</span>
+                          </div>
+                        )}
                         {typeof entry.payload?.imageDataUrl === "string" && (
                           <img
                             src={entry.payload.imageDataUrl as string}
@@ -578,7 +589,74 @@ const WorkspaceScreen = (): JSX.Element => {
                             dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.timelineText) }}
                           />
                         )}
+                        {/* Reaction pills */}
+                        {entry.reactions && entry.reactions.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {entry.reactions.map((r) => (
+                              <button
+                                key={r.emoji}
+                                type="button"
+                                onClick={() => void (r.reacted ? removeReaction(entry.id, r.emoji) : addReaction(entry.id, r.emoji))}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] border transition-colors ${
+                                  r.reacted
+                                    ? "bg-violet-500/20 border-violet-500/40 text-violet-300"
+                                    : "bg-zinc-800/60 border-zinc-700/40 text-zinc-400 hover:border-zinc-600"
+                                }`}
+                              >
+                                <span>{r.emoji}</span>
+                                <span className="font-mono text-[10px]">{r.count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
+                      {/* Hover actions */}
+                      {entry.type === "message.posted" && (
+                        <div className="absolute right-2 top-0 hidden group-hover:flex items-center gap-0.5 bg-zinc-800 border border-zinc-700/60 rounded-md shadow-lg px-0.5 py-0.5 -translate-y-1/2">
+                          <button
+                            type="button"
+                            onClick={() => setReplyingTo({ id: entry.id, actorDisplayName: entry.actorDisplayName, text: entry.timelineText })}
+                            className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                            title="Reply"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M6 8L2 4l4-4" />
+                              <path d="M2 4h8a4 4 0 0 1 4 4v4" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmojiPickerFor(emojiPickerFor === entry.id ? null : entry.id)}
+                            className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                            title="React"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <circle cx="8" cy="8" r="6.5" />
+                              <circle cx="6" cy="7" r="0.75" fill="currentColor" />
+                              <circle cx="10" cy="7" r="0.75" fill="currentColor" />
+                              <path d="M5.5 10a2.5 2.5 0 0 0 5 0" />
+                            </svg>
+                          </button>
+                          {/* Emoji picker popup */}
+                          {emojiPickerFor === entry.id && (
+                            <div className="absolute right-0 top-full mt-1 flex gap-0.5 bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-xl px-1 py-1 z-10">
+                              {["👍", "❤️", "😂", "😮", "😢", "🎉"].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  onClick={() => {
+                                    void addReaction(entry.id, emoji);
+                                    setEmojiPickerFor(null);
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-700 transition-colors text-sm"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -590,11 +668,33 @@ const WorkspaceScreen = (): JSX.Element => {
                     e.preventDefault();
                     const body = messageBody.trim();
                     if (body.length === 0 && pendingImage === null) return;
-                    void postMessage(body, pendingImage ?? undefined);
+                    void postMessage(body, pendingImage ?? undefined, replyingTo?.id);
                     setMessageBody("");
                     setPendingImage(null);
+                    setReplyingTo(null);
                   }}
                 >
+                  {/* Reply banner */}
+                  {replyingTo !== null && (
+                    <div className="mb-2 flex items-center gap-2 px-3 py-1.5 bg-zinc-800/60 border border-zinc-700/40 rounded-md text-[11px]">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500 shrink-0">
+                        <path d="M6 8L2 4l4-4" />
+                        <path d="M2 4h8a4 4 0 0 1 4 4v4" />
+                      </svg>
+                      <span className="text-zinc-500">Replying to</span>
+                      <span className="text-zinc-300 font-medium">{replyingTo.actorDisplayName}</span>
+                      <span className="text-zinc-500 truncate flex-1">{replyingTo.text.length > 60 ? replyingTo.text.slice(0, 60) + "..." : replyingTo.text}</span>
+                      <button
+                        type="button"
+                        onClick={() => setReplyingTo(null)}
+                        className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                   {pendingImage !== null && (
                     <div className="mb-2 relative inline-block">
                       <img src={pendingImage} alt="preview" className="max-h-32 rounded-md border border-zinc-700/40" />
@@ -616,9 +716,10 @@ const WorkspaceScreen = (): JSX.Element => {
                           e.preventDefault();
                           const body = messageBody.trim();
                           if (body.length === 0 && pendingImage === null) return;
-                          void postMessage(body, pendingImage ?? undefined);
+                          void postMessage(body, pendingImage ?? undefined, replyingTo?.id);
                           setMessageBody("");
                           setPendingImage(null);
+                          setReplyingTo(null);
                         }
                         if (e.ctrlKey && e.key === "v") {
                           e.preventDefault();
