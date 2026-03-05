@@ -1,69 +1,57 @@
-# Slopify - User Guide
+# User Guide
 
-## Getting Started
-
-### 1. Download the App
+## Install
 
 Download the installer for your platform:
 
-- **macOS**: `Slopify-x.x.x.dmg`
-- **Windows**: `Slopify-Setup-x.x.x.exe`
-- **Linux**: `Slopify-x.x.x.AppImage`
+- macOS: `.dmg` — open and drag to Applications
+- Windows: `.exe` — run the installer
+- Linux: `.AppImage` — `chmod +x` and run
 
-### 2. Install
+## First launch
 
-- **macOS**: Open the `.dmg` file and drag Slopify to your Applications folder.
-- **Windows**: Run the `.exe` installer and follow the prompts.
-- **Linux**: Make the AppImage executable (`chmod +x Slopify-*.AppImage`) and run it.
-
-### 3. First Launch
-
-When you open Slopify for the first time, you'll see a setup screen. You need the following information from your server operator:
-
-- **Server URL** (e.g. `http://your-server-ip:4000`)
-- **Server access password**
-
-Fill in the form:
+Enter the following (provided by your server operator):
 
 | Field | Description |
 |-------|-------------|
-| Display name | Your name shown to other members |
-| Avatar URL | (Optional) URL to your profile image |
-| Server URL | Provided by your server operator |
-| Server access password | Provided by your server operator |
+| Display name | Your name shown to others |
+| Avatar URL | Optional profile image URL |
+| Server URL | e.g. `http://your-server:4000` |
+| Server access password | Shared password for your team |
 
-Click **Continue**. If the connection is successful, you'll land on the Project List.
+Click **Continue**.
 
-### 4. Using Slopify
+## Projects
 
-#### Projects
+- **Create**: Type a name and click Create
+- **Join**: Click "Join with invite" and paste the invite code from a teammate
 
-- **Create a project**: Type a name and click **Create**
-- **Join a project**: Click **Join with invite** and enter the invite code shared by a teammate
+## Workspace
 
-#### Workspace
+Click a project to open it. Left sidebar has channels, docs, and members.
 
-Click a project to open its workspace. The workspace has two panes:
+### Chat
 
-- **Left pane**: Navigate between Chat channels, Docs, and see Members
-- **Right pane**: View the selected chat or document
+- Type in the composer and press **Enter** to send
+- **Shift+Enter** for newlines
+- **Ctrl+V** to paste images from clipboard
+- Supports markdown (headings, bold, code blocks, lists, etc.)
 
-#### Chat
+### Decisions
 
-- Send messages in any channel
-- Create tasks and record decisions in the right panel
-- Check/uncheck tasks to mark them complete
+- Shown in the right panel alongside chat
+- Resizable by dragging the divider
+- Collapsible via the toggle button in the chat header
 
-#### Docs
+### Docs
 
-- Create Markdown documents
-- Edit and save them
+- Create and edit markdown documents
 - Add comments visible to all members
 
-#### Settings
+### Settings
 
-Click **Settings** from the project list to update your display name, avatar, server URL, or disconnect.
+Click **Settings** from the project list to update your profile or server connection.
 
-## Offline Support
+## Offline
 
-Slopify works offline. Your messages and changes are saved locally and sync automatically when you reconnect.
+Everything works offline. Changes sync automatically when you reconnect.

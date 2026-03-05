@@ -1,106 +1,90 @@
-# Slopify Server - Deployment Guide
+# Deployment Guide
 
-Deploy the Slopify sync server on a DigitalOcean Ubuntu droplet (or any Linux server with Docker).
+Deploy the Slopify sync server on any Linux server with Docker.
+
+## What the server does
+
+The sync server is a real-time relay between desktop clients. It receives events (messages, decisions, etc.) from each client via Socket.IO, stores them in PostgreSQL, and broadcasts them to other connected clients. Offline clients pull missed events when they reconnect.
 
 ## Prerequisites
 
-- Ubuntu 22.04+ server (DigitalOcean droplet recommended)
-- Docker and Docker Compose installed
-- A port open for the sync server (default: 4000)
+- Linux server (Ubuntu 22.04+ recommended)
+- Docker and Docker Compose
 
-### Install Docker (if not already installed)
+### Install Docker
 
 ```bash
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
-# Log out and back in for group change to take effect
+# Log out and back in
 ```
 
 ## Setup
 
-### 1. Clone the repository
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/hibiki333155555/Slopify.git
 cd Slopify
-```
-
-### 2. Configure environment
-
-```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your settings:
+Edit `.env`:
 
 ```
 PORT=4000
 SERVER_ACCESS_PASSWORD=your-secret-password
-
 POSTGRES_DB=slopify
 POSTGRES_USER=slopify
 POSTGRES_PASSWORD=a-strong-db-password
 ```
 
-**Important**: Change `SERVER_ACCESS_PASSWORD` to a unique password. Share this password privately with your users.
-
-### 3. Start the server
+### 2. Start
 
 ```bash
 docker compose up -d --build
 ```
 
-This starts:
-- **PostgreSQL** database (internal only, not exposed to the internet)
-- **Sync server** on the configured port
-
-### 4. Verify
+### 3. Verify
 
 ```bash
 docker compose ps
-```
-
-Both services should show `running`. Test the server:
-
-```bash
 curl http://localhost:4000/health
+# {"ok":true}
 ```
 
-## Share with Users
+## Share with users
 
 Give your users:
+- **Server URL**: `http://YOUR_SERVER_IP:4000`
+- **Server access password**: the value from `.env`
 
-1. **Server URL**: `http://YOUR_SERVER_IP:4000`
-2. **Server access password**: the value you set in `.env`
-
-They enter these on first launch of the Slopify desktop app.
-
-## Management
+## Firewall
 
 ```bash
-# View logs
-docker compose logs -f sync-server
-
-# Restart
-docker compose restart
-
-# Stop
-docker compose down
-
-# Update to latest version
-git pull
-docker compose up -d --build
-```
-
-## Security Notes
-
-- PostgreSQL is only accessible internally between Docker containers
-- Use a firewall (e.g. `ufw`) to restrict access to only port 4000 (and SSH)
-- For production use, consider adding HTTPS via a reverse proxy (nginx/Caddy)
-
-```bash
-# Example: allow only SSH and sync server
 sudo ufw allow OpenSSH
 sudo ufw allow 4000/tcp
 sudo ufw enable
 ```
+
+PostgreSQL is internal only (not exposed to the internet).
+
+## Management
+
+```bash
+docker compose logs -f sync-server   # View logs
+docker compose restart               # Restart
+docker compose down                  # Stop
+
+# Update
+git pull
+docker compose up -d --build
+```
+
+## Backups
+
+PostgreSQL data is in Docker volume `postgres_data`. Schedule `pg_dump` backups as needed.
+
+## HTTPS
+
+For production, put a reverse proxy (nginx or Caddy) in front of port 4000 with TLS.
