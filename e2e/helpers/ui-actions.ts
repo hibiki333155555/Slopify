@@ -16,7 +16,7 @@ export async function createProject(client: Client, name: string): Promise<void>
 export async function sendMessage(client: Client, body: string): Promise<void> {
   const page = client.page;
   await page.getByPlaceholder("Type a message").fill(body);
-  await page.getByRole("button", { name: "Send message" }).click();
+  await page.getByPlaceholder("Type a message").press("Enter");
   await page.getByText(body).first().waitFor({ timeout: 15_000 });
 }
 

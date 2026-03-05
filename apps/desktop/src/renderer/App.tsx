@@ -1,5 +1,11 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { marked } from "marked";
 import { getSelectedDoc, useAppStore } from "./store.js";
+
+marked.setOptions({ breaks: true, gfm: true });
+
+const renderMarkdown = (text: string): string =>
+  marked.parse(text, { async: false }) as string;
 
 const formatDateTime = (timestamp: number): string =>
   new Date(timestamp).toLocaleString(undefined, {
@@ -325,6 +331,38 @@ const WorkspaceScreen = (): JSX.Element => {
   const [decisionBody, setDecisionBody] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [decisionsOpen, setDecisionsOpen] = useState(true);
+  const [decisionWidth, setDecisionWidth] = useState(320);
+  const [resizing, setResizing] = useState(false);
+  const isDragging = useRef(false);
+  const messagesRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [workspace?.timeline.length]);
+
+  const onDividerMouseDown = useCallback(() => {
+    isDragging.current = true;
+    setResizing(true);
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const w = window.innerWidth - e.clientX;
+      setDecisionWidth(Math.max(200, Math.min(600, w)));
+    };
+    const onMouseUp = () => {
+      isDragging.current = false;
+      setResizing(false);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
 
   const selectedDoc = getSelectedDoc(workspace);
   const [docMarkdownDraft, setDocMarkdownDraft] = useState("");
@@ -495,14 +533,26 @@ const WorkspaceScreen = (): JSX.Element => {
           {workspace.selectedType === "chat" ? (
             <div className="flex flex-1 min-h-0">
               {/* Chat panel */}
-              <div className="flex-[2] flex flex-col min-h-0 border-r border-zinc-800/60">
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 {/* Chat header */}
-                <div className="px-5 py-3 border-b border-zinc-800/60 shrink-0">
+                <div className="px-5 py-3 border-b border-zinc-800/60 shrink-0 flex items-center justify-between">
                   <span className="text-xs font-semibold text-zinc-300">#{selectedChannelName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDecisionsOpen((v) => !v)}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                    title={decisionsOpen ? "Hide decisions" : "Show decisions"}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="1" y="2" width="14" height="12" rx="1.5" />
+                      <path d="M10 2v12" />
+                    </svg>
+                    Decisions
+                  </button>
                 </div>
 
                 {/* Messages */}
-                <ul className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+                <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
                   {workspace.timeline.map((entry) => (
                     <li key={entry.id} className="flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
                       <div className="w-8 h-8 rounded-full bg-violet-500/80 flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-0.5">
@@ -517,7 +567,10 @@ const WorkspaceScreen = (): JSX.Element => {
                           <img src={entry.payload.imageDataUrl as string} alt="" className="mt-1 max-w-xs max-h-60 rounded-md border border-zinc-700/40" />
                         )}
                         {entry.timelineText && (
-                          <p className="text-xs text-zinc-400 mt-0.5 whitespace-pre-wrap break-words">{entry.timelineText}</p>
+                          <div
+                            className="prose-chat text-xs text-zinc-400 mt-0.5 break-words"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.timelineText) }}
+                          />
                         )}
                       </div>
                     </li>
@@ -589,79 +642,46 @@ const WorkspaceScreen = (): JSX.Element => {
                         }}
                       />
                     </label>
-                    <button
-                      type="submit"
-                      className="px-3 py-2 text-xs font-medium bg-zinc-100 text-zinc-900 rounded-md hover:bg-zinc-200 transition-colors shrink-0"
-                    >
-                      Send message
-                    </button>
                   </div>
                 </form>
               </div>
 
-              {/* Tasks & Decisions panel */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-                {/* Tasks */}
-                <div className="p-4 border-b border-zinc-800/60">
-                  <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Tasks</span>
-                  <ul className="task-list mt-2 space-y-1">
-                    {workspace.data.tasks
-                      .filter((t) => t.chatChannelId === workspace.selectedItemId)
-                      .map((task) => (
-                        <li key={task.taskId} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-900/40 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={task.completed}
-                            onChange={(e) => void setTaskStatus(task.taskId, e.target.checked)}
-                            className="accent-emerald-400"
-                          />
-                          <span className={`text-xs ${task.completed ? "text-zinc-600 line-through" : "text-zinc-300"}`}>
-                            {task.title}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                  <form
-                    className="mt-2 flex gap-1.5"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const title = taskTitle.trim();
-                      if (title.length === 0) return;
-                      void createTask(title);
-                      setTaskTitle("");
-                    }}
-                  >
-                    <input
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
-                      placeholder="Task title"
-                      required
-                      className="flex-1 min-w-0 px-2 py-1 bg-zinc-800/80 border border-zinc-700/60 rounded text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
-                    />
-                    <button
-                      type="submit"
-                      className="px-2 py-1 text-[11px] font-medium bg-zinc-800 text-zinc-300 rounded hover:bg-zinc-700 transition-colors shrink-0"
-                    >
-                      Create task
-                    </button>
-                  </form>
-                </div>
+              {/* Resizable divider — only when open */}
+              {decisionsOpen && (
+                <div
+                  onMouseDown={onDividerMouseDown}
+                  className="w-1 shrink-0 bg-zinc-800/60 hover:bg-zinc-500 cursor-col-resize"
+                />
+              )}
 
-                {/* Decisions */}
-                <div className="p-4 border-b border-zinc-800/60">
-                  <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Decisions</span>
-                  <ul className="mt-2 space-y-1.5">
-                    {workspace.data.decisions
-                      .filter((d) => d.chatChannelId === workspace.selectedItemId)
-                      .map((decision) => (
-                        <li key={decision.decisionId} className="px-2 py-1.5 rounded bg-zinc-900/40">
-                          <div className="text-xs font-medium text-zinc-300">{decision.title}</div>
-                          <div className="text-[11px] text-zinc-500 mt-0.5">{decision.body}</div>
-                        </li>
-                      ))}
-                  </ul>
+              {/* Decisions panel */}
+              <div
+                style={{ width: decisionsOpen ? decisionWidth : 0 }}
+                className={`shrink-0 overflow-hidden border-l border-zinc-800/60 ${resizing ? "" : "transition-[width] duration-200 ease-out"}`}
+              >
+                <div className="flex flex-col h-full" style={{ width: decisionWidth }}>
+                  {/* Header */}
+                  <div className="px-4 py-3 border-b border-zinc-800/60 shrink-0">
+                    <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Decisions</span>
+                  </div>
+
+                  {/* Decision list */}
+                  <div className="p-4 flex-1 overflow-y-auto">
+                    <ul className="space-y-1.5">
+                      {workspace.data.decisions
+                        .filter((d) => d.chatChannelId === workspace.selectedItemId)
+                        .map((decision) => (
+                          <li key={decision.decisionId} className="px-2 py-1.5 rounded bg-zinc-900/40">
+                            <div className="text-xs font-medium text-zinc-300">{decision.title}</div>
+                            <div className="text-[11px] text-zinc-500 mt-0.5">{decision.body}</div>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+
+                  {/* Record form */}
                   <form
-                    className="mt-2 flex flex-col gap-1.5"
+                    className="p-4 border-t border-zinc-800/60 shrink-0 flex flex-col gap-1.5"
                     onSubmit={(e) => {
                       e.preventDefault();
                       const title = decisionTitle.trim();
@@ -741,7 +761,10 @@ const WorkspaceScreen = (): JSX.Element => {
                         className="w-full h-full bg-transparent text-sm text-zinc-300 font-mono resize-none focus:outline-none"
                       />
                     ) : (
-                      <pre className="text-sm text-zinc-300 font-mono whitespace-pre-wrap">{docMarkdownDraft}</pre>
+                      <div
+                        className="prose-chat text-sm text-zinc-300"
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(docMarkdownDraft) }}
+                      />
                     )}
                   </div>
                 </article>
