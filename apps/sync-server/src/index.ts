@@ -38,7 +38,7 @@ const start = async (): Promise<void> => {
   const { pool, config } = await createServerDb();
   const repository = new SyncRepository(pool);
 
-  const fastify = Fastify({ logger: true });
+  const fastify = Fastify({ logger: true, bodyLimit: 50 * 1024 * 1024 });
 
   fastify.get("/health", async () => ({ ok: true }));
 
@@ -84,6 +84,7 @@ const start = async (): Promise<void> => {
     cors: {
       origin: "*",
     },
+    maxHttpBufferSize: 50e6, // 50 MB — needed for base64 image payloads
   });
 
   io.use(async (socket, next) => {
