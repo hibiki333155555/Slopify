@@ -120,14 +120,20 @@ const start = async (): Promise<void> => {
   io.on("connection", async (socket) => {
     const userId = z.string().parse(socket.data.userId);
     const memberProjectIds = await repository.listProjectIdsForUser(userId);
+    console.log(`[socket.io] connected: userId=${userId} projects=[${memberProjectIds.join(",")}] socketId=${socket.id}`);
     for (const projectId of memberProjectIds) {
       socket.join(`project:${projectId}`);
     }
+
+    socket.on("disconnect", (reason) => {
+      console.log(`[socket.io] disconnected: userId=${userId} reason=${reason}`);
+    });
 
     socket.on("sync:pull", async (rawPayload: unknown, ack: (response: { events: EventRecord[] }) => void) => {
       try {
         const payload = pullSchema.parse(rawPayload);
         if (payload.serverAccessPassword !== config.serverAccessPassword) {
+          console.log(`[socket.io] pull UNAUTHORIZED: userId=${userId}`);
           ack({ events: [] });
           return;
         }
@@ -137,8 +143,10 @@ const start = async (): Promise<void> => {
         }
 
         const events = await repository.pullEvents(payload.projectIds, payload.since);
+        console.log(`[socket.io] pull: userId=${userId} projects=[${payload.projectIds.join(",")}] since=${payload.since} returned=${events.length}`);
         ack({ events });
-      } catch {
+      } catch (err) {
+        console.error(`[socket.io] pull ERROR: userId=${userId}`, err);
         ack({ events: [] });
       }
     });
@@ -147,11 +155,14 @@ const start = async (): Promise<void> => {
       try {
         const payload = pushSchema.parse(rawPayload);
         if (payload.serverAccessPassword !== config.serverAccessPassword) {
+          console.log(`[socket.io] push UNAUTHORIZED: userId=${userId}`);
           ack({ acceptedIds: [] });
           return;
         }
 
+        console.log(`[socket.io] push: userId=${userId} events=${payload.events.length} types=[${payload.events.map((e) => e.type).join(",")}]`);
         const acceptedIds = await repository.pushEvents(payload.events);
+        console.log(`[socket.io] push accepted: ${acceptedIds.length}/${payload.events.length}`);
         ack({ acceptedIds });
 
         const acceptedSet = new Set(acceptedIds);
@@ -166,10 +177,13 @@ const start = async (): Promise<void> => {
         }
 
         for (const [projectId, projectEvents] of byProject.entries()) {
+          const roomSize = io.sockets.adapter.rooms.get(`project:${projectId}`)?.size ?? 0;
+          console.log(`[socket.io] broadcast: project=${projectId} events=${projectEvents.length} roomSize=${roomSize}`);
           io.to(`project:${projectId}`).emit("sync:event", { projectId });
           io.to(`project:${projectId}`).emit("sync:events", { events: projectEvents });
         }
-      } catch {
+      } catch (err) {
+        console.error(`[socket.io] push ERROR: userId=${userId}`, err);
         ack({ acceptedIds: [] });
       }
     });
