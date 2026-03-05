@@ -601,11 +601,19 @@ const WorkspaceScreen = (): JSX.Element => {
                       </button>
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    <input
+                  <div className="flex gap-2 items-end">
+                    <textarea
                       value={messageBody}
                       onChange={(e) => setMessageBody(e.target.value)}
                       onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          const body = messageBody.trim();
+                          if (body.length === 0 && pendingImage === null) return;
+                          void postMessage(body, pendingImage ?? undefined);
+                          setMessageBody("");
+                          setPendingImage(null);
+                        }
                         if (e.ctrlKey && e.key === "v") {
                           e.preventDefault();
                           void window.desktopApi.readClipboardImage().then((dataUrl) => {
@@ -620,7 +628,8 @@ const WorkspaceScreen = (): JSX.Element => {
                         }
                       }}
                       placeholder="Type a message"
-                      className="flex-1 px-3 py-2 bg-zinc-800/80 border border-zinc-700/60 rounded-md text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                      rows={1}
+                      className="flex-1 px-3 py-2 bg-zinc-800/80 border border-zinc-700/60 rounded-md text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors resize-none max-h-32 overflow-y-auto"
                     />
                     <label className="px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors shrink-0 cursor-pointer flex items-center">
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
