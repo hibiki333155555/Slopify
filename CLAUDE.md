@@ -64,10 +64,12 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 - Chat composer: Enter to send, Shift+Enter for newline, Ctrl+V to paste images
 - Decisions panel is resizable (drag divider) and collapsible (toggle in chat header)
 
-**Sync server (Fastify + Socket.IO):**
+**Sync server (Fastify + Socket.IO) — deployed on VPS:**
+- Real-time relay: receives events from desktop clients via Socket.IO, stores in PostgreSQL, broadcasts to other connected clients. Offline clients pull missed events on reconnect.
 - `apps/sync-server/src/index.ts` — server setup, Socket.IO event handlers, Fastify routes
 - `apps/sync-server/src/repository.ts` — PostgreSQL data access
 - Auth is a single shared password (`SERVER_ACCESS_PASSWORD` env var)
+- Deployed via `docker compose up -d --build` on any Linux server with Docker (see `docs/deployment-guide.md`)
 
 **Shared package:**
 - `packages/shared/src/schema/` — Zod schemas for all entities and commands

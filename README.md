@@ -48,6 +48,20 @@ npm run test:e2e:ui
 npm run test:e2e:runtime
 ```
 
+## Deploy sync server (VPS)
+
+The sync server is a real-time relay. It receives events from each desktop client via Socket.IO, stores them in PostgreSQL, and broadcasts to other connected clients.
+
+```bash
+# On your VPS (Ubuntu + Docker)
+git clone https://github.com/hibiki333155555/Slopify.git
+cd Slopify
+cp .env.example .env   # Edit passwords
+docker compose up -d --build
+```
+
+Give users the server URL (`http://YOUR_VPS_IP:4000`) and password. See `docs/deployment-guide.md` for details.
+
 ## Stack
 
 - Electron + React + Zustand (desktop)
