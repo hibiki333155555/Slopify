@@ -17,6 +17,7 @@ type DbEventRow = {
   chat_channel_id: string | null;
   doc_id: string | null;
   created_at: string | number;
+  server_seq: string | number;
 };
 
 export class SyncRepository {
@@ -91,8 +92,8 @@ export class SyncRepository {
       await this.applyProjection(memberEvent);
     }
 
-    const events = await this.pullEvents([projectId], 0);
-    return { projectId, events };
+    const result = await this.pullEvents([projectId], 0);
+    return { projectId, events: result.events };
   }
 
   public async listProjectIdsForUser(userId: string): Promise<string[]> {
@@ -103,9 +104,9 @@ export class SyncRepository {
     return result.rows.map((row) => row.project_id);
   }
 
-  public async pullEvents(projectIds: string[], since: number): Promise<EventRecord[]> {
+  public async pullEvents(projectIds: string[], since: number): Promise<{ events: EventRecord[]; cursor: number }> {
     if (projectIds.length === 0) {
-      return [];
+      return { events: [], cursor: since };
     }
 
     const params: unknown[] = [since, ...projectIds];
@@ -113,17 +114,20 @@ export class SyncRepository {
 
     const result = await this.pool.query<DbEventRow>(
       `
-      SELECT id, project_id, actor_user_id, type, payload_json, chat_channel_id, doc_id, created_at
+      SELECT id, project_id, actor_user_id, type, payload_json, chat_channel_id, doc_id, created_at, server_seq
       FROM events
-      WHERE created_at > $1
+      WHERE server_seq > $1
         AND project_id IN (${projectPlaceholders})
-      ORDER BY created_at ASC
+      ORDER BY server_seq ASC
       `,
       params,
     );
 
-    return result.rows.map((row) =>
-      eventSchema.parse({
+    let maxSeq = since;
+    const events = result.rows.map((row) => {
+      const seq = Number(row.server_seq);
+      if (seq > maxSeq) maxSeq = seq;
+      return eventSchema.parse({
         id: row.id,
         projectId: row.project_id,
         actorUserId: row.actor_user_id,
@@ -132,8 +136,10 @@ export class SyncRepository {
         chatChannelId: row.chat_channel_id,
         docId: row.doc_id,
         createdAt: Number(row.created_at),
-      }),
-    );
+      });
+    });
+
+    return { events, cursor: maxSeq };
   }
 
   public async pushEvents(inputEvents: EventRecord[]): Promise<string[]> {

@@ -1145,27 +1145,23 @@ export class DesktopRepository {
 
         const pending = this.pendingEvents();
         if (projectIds.length === 0 && pending.length === 0) {
-          const now = Date.now();
-          this.setMeta("last_pulled_at", String(now));
-          this.currentSyncStatus.lastPulledSeq = now;
-          this.currentSyncStatus.lastPulledAt = now;
           this.currentSyncStatus.authed = true;
           this.currentSyncStatus.subscribed = true;
           this.currentSyncStatus.lastError = null;
           return;
         }
 
-        const pulled = await this.syncClient.pull({
+        const pullResult = await this.syncClient.pull({
           projectIds,
           since: this.getLastPulledAt(),
           serverAccessPassword: identity.serverAccessPassword,
         });
 
-        await this.applyRemoteEvents(pulled);
-        const now = Date.now();
-        this.setMeta("last_pulled_at", String(now));
-        this.currentSyncStatus.lastPulledSeq = now;
-        this.currentSyncStatus.lastPulledAt = now;
+        await this.applyRemoteEvents(pullResult.events);
+        const cursor = pullResult.cursor;
+        this.setMeta("last_pulled_at", String(cursor));
+        this.currentSyncStatus.lastPulledSeq = cursor;
+        this.currentSyncStatus.lastPulledAt = cursor;
         this.currentSyncStatus.authed = true;
         this.currentSyncStatus.subscribed = true;
         this.currentSyncStatus.lastError = null;
@@ -1715,7 +1711,11 @@ export class DesktopRepository {
       return 0;
     }
     const num = Number(value);
-    return Number.isFinite(num) ? num : 0;
+    if (!Number.isFinite(num)) return 0;
+    // Migrate from old timestamp-based cursor to server_seq-based cursor.
+    // Timestamps are >1e12 while server_seq starts from 1.
+    if (num > 1e10) return 0;
+    return num;
   }
 
   private getSyncIdentity(): { userId: string; settings: Settings; serverAccessPassword: string } | null {

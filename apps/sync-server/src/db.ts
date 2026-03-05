@@ -98,10 +98,12 @@ CREATE TABLE IF NOT EXISTS events (
   payload_json JSONB NOT NULL,
   chat_channel_id TEXT,
   doc_id TEXT,
-  created_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL,
+  server_seq BIGSERIAL NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_project_created_at ON events(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_project_server_seq ON events(project_id, server_seq);
 
 CREATE TABLE IF NOT EXISTS invites (
   invite_code TEXT PRIMARY KEY,

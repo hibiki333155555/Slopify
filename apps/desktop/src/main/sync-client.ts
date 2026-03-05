@@ -191,17 +191,17 @@ export class SyncClient {
     projectIds: string[];
     since: number;
     serverAccessPassword: string;
-  }): Promise<EventRecord[]> {
+  }): Promise<{ events: EventRecord[]; cursor: number }> {
     if (this.socket === null) {
-      return [];
+      return { events: [], cursor: input.since };
     }
 
     const connected = await this.ensureConnected(5000);
     if (!connected || this.socket === null) {
-      return [];
+      return { events: [], cursor: input.since };
     }
 
-    const response = await emitWithAck<{ events: EventRecord[] }>(
+    const response = await emitWithAck<{ events: EventRecord[]; cursor?: number }>(
       this.socket,
       "sync:pull",
       {
@@ -212,7 +212,7 @@ export class SyncClient {
       10000,
     );
 
-    return response.events;
+    return { events: response.events, cursor: response.cursor ?? input.since };
   }
 
   public async push(input: {

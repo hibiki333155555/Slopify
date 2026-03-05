@@ -129,7 +129,7 @@ const start = async (): Promise<void> => {
       console.log(`[socket.io] disconnected: userId=${userId} reason=${reason}`);
     });
 
-    socket.on("sync:pull", async (rawPayload: unknown, ack: (response: { events: EventRecord[] }) => void) => {
+    socket.on("sync:pull", async (rawPayload: unknown, ack: (response: { events: EventRecord[]; cursor?: number }) => void) => {
       try {
         const payload = pullSchema.parse(rawPayload);
         if (payload.serverAccessPassword !== config.serverAccessPassword) {
@@ -142,9 +142,9 @@ const start = async (): Promise<void> => {
           socket.join(`project:${projectId}`);
         }
 
-        const events = await repository.pullEvents(payload.projectIds, payload.since);
-        console.log(`[socket.io] pull: userId=${userId} projects=[${payload.projectIds.join(",")}] since=${payload.since} returned=${events.length}`);
-        ack({ events });
+        const result = await repository.pullEvents(payload.projectIds, payload.since);
+        console.log(`[socket.io] pull: userId=${userId} projects=[${payload.projectIds.join(",")}] since=${payload.since} returned=${result.events.length} cursor=${result.cursor}`);
+        ack({ events: result.events, cursor: result.cursor });
       } catch (err) {
         console.error(`[socket.io] pull ERROR: userId=${userId}`, err);
         ack({ events: [] });
