@@ -49,6 +49,7 @@ export const projectSummarySchema = z.object({
   updatedAt: unixMsSchema,
   memberCount: z.number().int().nonnegative(),
   lastActivityAt: unixMsSchema,
+  unreadCount: z.number().int().nonnegative(),
 });
 
 export const chatChannelSchema = z.object({
@@ -109,7 +110,7 @@ export const timelineEventSchema = z.object({
   createdAt: unixMsSchema,
   actorDisplayName: nonEmptyTrimmedStringSchema,
   actorAvatarUrl: z.string().nullable(),
-  timelineText: nonEmptyTrimmedStringSchema,
+  timelineText: z.string(),
 });
 
 export const workspaceStateSchema = z.object({

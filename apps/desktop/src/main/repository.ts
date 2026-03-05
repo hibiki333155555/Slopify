@@ -60,6 +60,7 @@ import {
   events,
   invites,
   projectMembers,
+  projectReadCursors,
   projects,
   tasks,
   users,
@@ -353,6 +354,7 @@ export class DesktopRepository {
   }
 
   public async listProjects(): Promise<ProjectSummary[]> {
+    const myUserId = this.getMeta("user_id");
     const rows = this.sqlite
       .prepare(
         `
@@ -362,7 +364,8 @@ export class DesktopRepository {
           p.created_at,
           p.updated_at,
           COALESCE(pm.member_count, 0) AS member_count,
-          COALESCE(ev.last_activity_at, p.updated_at) AS last_activity_at
+          COALESCE(ev.last_activity_at, p.updated_at) AS last_activity_at,
+          COALESCE(unread.cnt, 0) AS unread_count
         FROM projects p
         LEFT JOIN (
           SELECT project_id, COUNT(*) AS member_count
@@ -374,16 +377,25 @@ export class DesktopRepository {
           FROM events
           GROUP BY project_id
         ) ev ON ev.project_id = p.project_id
+        LEFT JOIN (
+          SELECT e.project_id, COUNT(*) AS cnt
+          FROM events e
+          LEFT JOIN project_read_cursors prc ON prc.project_id = e.project_id
+          WHERE e.created_at > COALESCE(prc.last_read_at, 0)
+            AND e.actor_user_id != ?
+          GROUP BY e.project_id
+        ) unread ON unread.project_id = p.project_id
         ORDER BY last_activity_at DESC
       `,
       )
-      .all() as Array<{
+      .all(myUserId ?? "") as Array<{
       project_id: string;
       name: string;
       created_at: number;
       updated_at: number;
       member_count: number;
       last_activity_at: number;
+      unread_count: number;
     }>;
 
     return rows.map((row) => ({
@@ -393,6 +405,7 @@ export class DesktopRepository {
       updatedAt: row.updated_at,
       memberCount: row.member_count,
       lastActivityAt: row.last_activity_at,
+      unreadCount: row.unread_count,
     }));
   }
 
@@ -495,6 +508,14 @@ export class DesktopRepository {
   }
 
   public async openWorkspace(projectId: string): Promise<OpenWorkspaceResult> {
+    this.sqlite
+      .prepare(
+        `INSERT INTO project_read_cursors (project_id, last_read_at)
+         VALUES (?, ?)
+         ON CONFLICT(project_id) DO UPDATE SET last_read_at = excluded.last_read_at`,
+      )
+      .run(projectId, Date.now());
+
     const project = this.requireProject(projectId);
     const members = await this.listMembers(projectId);
     const channels = await this.listChannels(projectId);
@@ -727,10 +748,14 @@ export class DesktopRepository {
 
   public async postMessage(inputRaw: PostMessageCommand): Promise<void> {
     const input = postMessageCommandSchema.parse(inputRaw);
-    const event = this.createEvent(input.projectId, "message.posted", {
+    const payload: Record<string, unknown> = {
       chatChannelId: input.chatChannelId,
       body: input.body,
-    }, input.chatChannelId, null);
+    };
+    if (input.imageDataUrl !== undefined) {
+      payload.imageDataUrl = input.imageDataUrl;
+    }
+    const event = this.createEvent(input.projectId, "message.posted", payload, input.chatChannelId, null);
 
     await this.appendLocalEvents([event]);
     await this.syncNow();
@@ -1485,6 +1510,7 @@ export class DesktopRepository {
       updatedAt: row.updated_at,
       memberCount: row.member_count,
       lastActivityAt: row.last_activity_at,
+      unreadCount: 0,
     };
   }
 
@@ -1522,7 +1548,8 @@ export class DesktopRepository {
       case "chat.renamed":
         return `Renamed channel to #${payload.payload.name}`;
       case "message.posted":
-        return payload.payload.body;
+        return (payload.payload as Record<string, unknown>).body as string
+          || ((payload.payload as Record<string, unknown>).imageDataUrl ? "[image]" : "");
       case "decision.recorded":
         return `Decision: ${payload.payload.title}\n${payload.payload.body}`;
       case "task.created":

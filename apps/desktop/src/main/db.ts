@@ -97,6 +97,11 @@ CREATE TABLE IF NOT EXISTS invites (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS project_read_cursors (
+  project_id TEXT PRIMARY KEY,
+  last_read_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_project_created_at ON events(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_sync_status ON events(sync_status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);

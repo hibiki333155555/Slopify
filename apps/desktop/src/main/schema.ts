@@ -96,3 +96,8 @@ export const invites = sqliteTable("invites", {
   inviteCode: text("invite_code").notNull(),
   createdAt: integer("created_at").notNull(),
 });
+
+export const projectReadCursors = sqliteTable("project_read_cursors", {
+  projectId: text("project_id").primaryKey(),
+  lastReadAt: integer("last_read_at").notNull(),
+});
