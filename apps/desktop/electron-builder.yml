@@ -1,0 +1,40 @@
+appId: com.slopify.desktop
+productName: Slopify
+electronVersion: "33.4.11"
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+  - "!dist/**/*.d.ts"
+  - "!dist/**/*.d.ts.map"
+  - "!dist/**/*.js.map"
+  - "!src/**"
+
+extraMetadata:
+  main: dist/main/main.js
+
+asar: true
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+
+win:
+  target:
+    - nsis
+
+linux:
+  target:
+    - AppImage
+  category: Office
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+npmRebuild: true
