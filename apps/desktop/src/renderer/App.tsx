@@ -7,6 +7,18 @@ marked.setOptions({ breaks: true, gfm: true });
 const renderMarkdown = (text: string): string =>
   marked.parse(text, { async: false }) as string;
 
+const Avatar = ({ name, url, size = 8 }: { name: string; url?: string | null | undefined; size?: number | undefined }): JSX.Element => {
+  const px = size * 4;
+  const textSize = size <= 5 ? "text-[9px]" : size <= 6 ? "text-[9px]" : "text-[11px]";
+  return url ? (
+    <img src={url} alt={name} style={{ width: px, height: px }} className="rounded-full object-cover shrink-0" />
+  ) : (
+    <div style={{ width: px, height: px }} className={`rounded-full bg-violet-500/80 flex items-center justify-center ${textSize} font-bold text-white shrink-0`}>
+      {(name[0] ?? "?").toUpperCase()}
+    </div>
+  );
+};
+
 const formatDateTime = (timestamp: number): string =>
   new Date(timestamp).toLocaleString(undefined, {
     year: "numeric",
@@ -523,9 +535,7 @@ const WorkspaceScreen = (): JSX.Element => {
             <ul className="mt-2 space-y-1">
               {workspace.data.members.map((member) => (
                 <li key={member.userId} className="flex items-center gap-2 px-2.5 py-1">
-                  <div className="w-5 h-5 rounded-full bg-violet-500/80 flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-                    {(member.displayName[0] ?? "?").toUpperCase()}
-                  </div>
+                  <Avatar name={member.displayName} url={member.avatarUrl} size={5} />
                   <span className="text-xs text-zinc-400 truncate">{member.displayName}</span>
                 </li>
               ))}
@@ -560,8 +570,8 @@ const WorkspaceScreen = (): JSX.Element => {
                 <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
                   {workspace.timeline.map((entry) => (
                     <li key={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
-                      <div className="w-8 h-8 rounded-full bg-violet-500/80 flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-0.5">
-                        {(entry.actorDisplayName[0] ?? "?").toUpperCase()}
+                      <div className="mt-0.5">
+                        <Avatar name={entry.actorDisplayName} url={entry.actorAvatarUrl} size={8} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
@@ -891,20 +901,24 @@ const WorkspaceScreen = (): JSX.Element => {
                     <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Comments</span>
                   </div>
                   <ul className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-                    {(workspace.docComments[selectedDoc.docId] ?? []).map((comment) => (
+                    {(workspace.docComments[selectedDoc.docId] ?? []).map((comment) => {
+                      const commentAuthor = workspace.data.members.find((m) => m.userId === comment.authorUserId);
+                      const commentName = commentAuthor?.displayName ?? "Member";
+                      return (
                       <li key={comment.commentId} className="flex gap-2.5 px-2 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
-                        <div className="w-6 h-6 rounded-full bg-violet-500/80 flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-0.5">
-                          C
+                        <div className="mt-0.5">
+                          <Avatar name={commentName} url={commentAuthor?.avatarUrl} size={6} />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-baseline gap-2">
-                            <span className="text-[11px] font-medium text-zinc-300">Member</span>
+                            <span className="text-[11px] font-medium text-zinc-300">{commentName}</span>
                             <span className="text-[10px] font-mono text-zinc-600">{formatTime(comment.createdAt)}</span>
                           </div>
                           <p className="text-xs text-zinc-400 mt-0.5 whitespace-pre-wrap">{comment.body}</p>
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                   <form
                     className="px-3 py-3 border-t border-zinc-800/60 shrink-0"
