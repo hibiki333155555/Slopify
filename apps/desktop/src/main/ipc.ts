@@ -5,6 +5,7 @@ import path from "node:path";
 import { BrowserWindow, clipboard, ipcMain } from "electron";
 import type {
   AddDocCommentCommand,
+  AddReactionCommand,
   CreateChatChannelCommand,
   CreateDocCommand,
   CreateProjectCommand,
@@ -13,6 +14,7 @@ import type {
   PostMessageCommand,
   RecordDecisionCommand,
   RenameChatChannelCommand,
+  RemoveReactionCommand,
   RenameDocCommand,
   SetupCommand,
   TimelineFilter,
@@ -47,6 +49,8 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
 
   ipcMain.handle("list-timeline", async (_event, filter: TimelineFilter) => await repository.listTimeline(filter));
   ipcMain.handle("post-message", async (_event, input: PostMessageCommand) => await repository.postMessage(input));
+  ipcMain.handle("add-reaction", async (_event, input: AddReactionCommand) => await repository.addReaction(input));
+  ipcMain.handle("remove-reaction", async (_event, input: RemoveReactionCommand) => await repository.removeReaction(input));
   ipcMain.handle("record-decision", async (_event, input: RecordDecisionCommand) => await repository.recordDecision(input));
   ipcMain.handle("create-task", async (_event, input: CreateTaskCommand) => await repository.createTask(input));
   ipcMain.handle("set-task-status", async (_event, input: UpdateTaskStatusCommand) => await repository.setTaskStatus(input));

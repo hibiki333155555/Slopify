@@ -329,7 +329,9 @@ export class SyncRepository {
         );
         break;
       }
-      case "message.posted": {
+      case "message.posted":
+      case "message.reaction.added":
+      case "message.reaction.removed": {
         break;
       }
     }

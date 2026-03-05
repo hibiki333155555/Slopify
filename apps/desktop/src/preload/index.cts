@@ -20,6 +20,8 @@ const api: DesktopApi = {
 
   listTimeline: async (filter) => await ipcRenderer.invoke("list-timeline", filter),
   postMessage: async (input) => await ipcRenderer.invoke("post-message", input),
+  addReaction: async (input) => await ipcRenderer.invoke("add-reaction", input),
+  removeReaction: async (input) => await ipcRenderer.invoke("remove-reaction", input),
   recordDecision: async (input) => await ipcRenderer.invoke("record-decision", input),
   createTask: async (input) => await ipcRenderer.invoke("create-task", input),
   setTaskStatus: async (input) => await ipcRenderer.invoke("set-task-status", input),

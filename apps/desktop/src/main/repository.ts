@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import {
   addDocCommentCommandSchema,
+  addReactionCommandSchema,
   bootstrapSchema,
   createChatChannelCommandSchema,
   createDocCommandSchema,
@@ -14,6 +15,7 @@ import {
   postMessageCommandSchema,
   recordDecisionCommandSchema,
   renameChatChannelCommandSchema,
+  removeReactionCommandSchema,
   renameDocCommandSchema,
   setupCommandSchema,
   timelineEventSchema,
@@ -21,6 +23,7 @@ import {
   updateDocCommandSchema,
   updateSettingsCommandSchema,
   updateTaskStatusCommandSchema,
+  type AddReactionCommand,
   type Bootstrap,
   type ChatChannel,
   type CreateChatChannelCommand,
@@ -38,6 +41,7 @@ import {
   type ProjectSummary,
   type RecordDecisionCommand,
   type RenameChatChannelCommand,
+  type RemoveReactionCommand,
   type RenameDocCommand,
   type Settings,
   type SetupCommand,
@@ -712,6 +716,7 @@ export class DesktopRepository {
 
   public async listTimeline(filterRaw: TimelineFilter): Promise<TimelineEvent[]> {
     const filter = timelineFilterSchema.parse(filterRaw);
+    const myUserId = this.getMeta("user_id");
 
     const rows =
       filter.workspaceType === "chat"
@@ -743,7 +748,83 @@ export class DesktopRepository {
             )
             .all(filter.projectId, filter.workspaceItemId) as EventRow[]);
 
-    return rows.map((row) => this.hydrateTimelineEvent(row));
+    // Separate reaction events from regular timeline events
+    const reactionRows: EventRow[] = [];
+    const timelineRows: EventRow[] = [];
+    for (const row of rows) {
+      if (row.type === "message.reaction.added" || row.type === "message.reaction.removed") {
+        reactionRows.push(row);
+      } else {
+        timelineRows.push(row);
+      }
+    }
+
+    // Build reactions map: messageEventId -> { emoji -> { count, users } }
+    const reactionsMap = new Map<string, Map<string, { count: number; users: Set<string> }>>();
+    for (const row of reactionRows) {
+      const payload = parseJson<Record<string, unknown>>(row.payload_json);
+      const messageEventId = payload.messageEventId as string;
+      const emoji = payload.emoji as string;
+      if (!reactionsMap.has(messageEventId)) {
+        reactionsMap.set(messageEventId, new Map());
+      }
+      const emojiMap = reactionsMap.get(messageEventId)!;
+      if (!emojiMap.has(emoji)) {
+        emojiMap.set(emoji, { count: 0, users: new Set() });
+      }
+      const entry = emojiMap.get(emoji)!;
+      if (row.type === "message.reaction.added") {
+        if (!entry.users.has(row.actor_user_id)) {
+          entry.count++;
+          entry.users.add(row.actor_user_id);
+        }
+      } else {
+        if (entry.users.has(row.actor_user_id)) {
+          entry.count--;
+          entry.users.delete(row.actor_user_id);
+        }
+      }
+    }
+
+    // Build a lookup for reply previews
+    const timelineById = new Map<string, EventRow>();
+    for (const row of timelineRows) {
+      timelineById.set(row.id, row);
+    }
+
+    return timelineRows.map((row) => {
+      const entry = this.hydrateTimelineEvent(row);
+
+      // Attach reactions
+      const emojiMap = reactionsMap.get(row.id);
+      if (emojiMap !== undefined) {
+        const reactions: Array<{ emoji: string; count: number; reacted: boolean }> = [];
+        for (const [emoji, data] of emojiMap) {
+          if (data.count > 0) {
+            reactions.push({ emoji, count: data.count, reacted: myUserId !== null && data.users.has(myUserId) });
+          }
+        }
+        if (reactions.length > 0) {
+          entry.reactions = reactions;
+        }
+      }
+
+      // Attach reply preview
+      const payload = parseJson<Record<string, unknown>>(row.payload_json);
+      const replyToEventId = payload.replyToEventId as string | undefined;
+      if (replyToEventId !== undefined) {
+        const replyRow = timelineById.get(replyToEventId);
+        if (replyRow !== undefined) {
+          const replyPayload = parseJson<Record<string, unknown>>(replyRow.payload_json);
+          entry.replyPreview = {
+            actorDisplayName: replyRow.actor_display_name ?? "Unknown",
+            text: (replyPayload.body as string) || "[image]",
+          };
+        }
+      }
+
+      return entry;
+    });
   }
 
   public async postMessage(inputRaw: PostMessageCommand): Promise<void> {
@@ -755,7 +836,46 @@ export class DesktopRepository {
     if (input.imageDataUrl !== undefined) {
       payload.imageDataUrl = input.imageDataUrl;
     }
+    if (input.replyToEventId !== undefined) {
+      payload.replyToEventId = input.replyToEventId;
+    }
     const event = this.createEvent(input.projectId, "message.posted", payload, input.chatChannelId, null);
+
+    await this.appendLocalEvents([event]);
+    await this.syncNow();
+  }
+
+  public async addReaction(inputRaw: AddReactionCommand): Promise<void> {
+    const input = addReactionCommandSchema.parse(inputRaw);
+    const event = this.createEvent(
+      input.projectId,
+      "message.reaction.added",
+      {
+        chatChannelId: input.chatChannelId,
+        messageEventId: input.messageEventId,
+        emoji: input.emoji,
+      },
+      input.chatChannelId,
+      null,
+    );
+
+    await this.appendLocalEvents([event]);
+    await this.syncNow();
+  }
+
+  public async removeReaction(inputRaw: RemoveReactionCommand): Promise<void> {
+    const input = removeReactionCommandSchema.parse(inputRaw);
+    const event = this.createEvent(
+      input.projectId,
+      "message.reaction.removed",
+      {
+        chatChannelId: input.chatChannelId,
+        messageEventId: input.messageEventId,
+        emoji: input.emoji,
+      },
+      input.chatChannelId,
+      null,
+    );
 
     await this.appendLocalEvents([event]);
     await this.syncNow();
@@ -1373,7 +1493,9 @@ export class DesktopRepository {
           .run();
         break;
       }
-      case "message.posted": {
+      case "message.posted":
+      case "message.reaction.added":
+      case "message.reaction.removed": {
         break;
       }
     }
@@ -1566,6 +1688,9 @@ export class DesktopRepository {
         return "Updated doc content";
       case "doc.comment.added":
         return `Commented: ${payload.payload.body}`;
+      case "message.reaction.added":
+      case "message.reaction.removed":
+        return "";
     }
   }
 
