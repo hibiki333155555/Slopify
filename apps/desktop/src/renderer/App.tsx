@@ -19,6 +19,36 @@ const Avatar = ({ name, url, size = 8 }: { name: string; url?: string | null | u
   );
 };
 
+const AvatarPicker = ({ name, avatarUrl, onChange }: { name: string; avatarUrl: string; onChange: (url: string) => void }): JSX.Element => (
+  <div className="block mb-4">
+    <span className="text-[10px] font-medium text-zinc-500 tracking-wide uppercase">Avatar (optional)</span>
+    <div className="mt-1 flex items-center gap-3">
+      <Avatar name={name || "?"} url={avatarUrl || null} size={10} />
+      <label className="px-3 py-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors cursor-pointer">
+        Choose image
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file === undefined) return;
+            const reader = new FileReader();
+            reader.onload = () => onChange(reader.result as string);
+            reader.readAsDataURL(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      {avatarUrl && (
+        <button type="button" onClick={() => onChange("")} className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
+          Remove
+        </button>
+      )}
+    </div>
+  </div>
+);
+
 const formatDateTime = (timestamp: number): string =>
   new Date(timestamp).toLocaleString(undefined, {
     year: "numeric",
@@ -76,16 +106,7 @@ const SetupScreen = (): JSX.Element => {
           />
         </label>
 
-        <label className="block mb-4">
-          <span className="text-[10px] font-medium text-zinc-500 tracking-wide uppercase">
-            Avatar URL (optional)
-          </span>
-          <input
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            className="mt-1 w-full px-3 py-2 bg-zinc-800/80 border border-zinc-700/60 rounded-md text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
-          />
-        </label>
+        <AvatarPicker name={displayName} avatarUrl={avatarUrl} onChange={setAvatarUrl} />
 
         <label className="block mb-4">
           <span className="text-[10px] font-medium text-zinc-500 tracking-wide uppercase">
@@ -1000,16 +1021,7 @@ const SettingsScreen = (): JSX.Element => {
           />
         </label>
 
-        <label className="block mb-4">
-          <span className="text-[10px] font-medium text-zinc-500 tracking-wide uppercase">
-            Avatar URL (optional)
-          </span>
-          <input
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            className="mt-1 w-full px-3 py-2 bg-zinc-800/80 border border-zinc-700/60 rounded-md text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
-          />
-        </label>
+        <AvatarPicker name={displayName} avatarUrl={avatarUrl} onChange={setAvatarUrl} />
 
         <label className="block mb-4">
           <span className="text-[10px] font-medium text-zinc-500 tracking-wide uppercase">
