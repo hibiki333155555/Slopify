@@ -13,21 +13,30 @@ Slopify is a local-first, event-sourced collaborative workspace. Electron deskto
 npm install
 
 # Build all packages (shared must build before apps)
-npm run -ws build
+npm run build
 
-# Dev mode
+# Start everything (postgres + sync-server + desktop)
+npm run dev
+
+# Dev mode (individual)
 npm run dev:desktop       # Runs renderer (Vite), main (tsc --watch), and Electron concurrently
 npm run dev:sync-server   # Runs server via tsx
+docker compose up -d postgres
 
 # Build individual packages
 npm run build -w packages/shared
 npm run build -w apps/desktop
 npm run build -w apps/sync-server
 
+# Distribution builds
+npm run dist:linux
+npm run dist:mac
+npm run dist:win
+
 # Docker (server + postgres)
 docker compose up --build
 
-# E2E tests (requires dev:desktop + dev:sync-server running)
+# E2E tests (requires dev environment running)
 npm run test:e2e              # Run all E2E tests
 npm run test:e2e:ui           # UI-based E2E (Playwright clicks)
 npm run test:e2e:runtime      # API-based E2E (desktopApi calls)
@@ -51,6 +60,9 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 - Main process: `apps/desktop/src/main/` — `repository.ts` is the data access layer over SQLite/Drizzle, `ipc.ts` registers all IPC handlers, `sync-client.ts` manages Socket.IO connection
 - Renderer: `apps/desktop/src/renderer/` — React with Zustand store (`store.ts`), single `App.tsx` routes between screens (Setup, Projects, Workspace, Settings)
 - Preload exposes `window.desktopApi` typed via `packages/shared/src/types/index.ts`
+- Chat messages render markdown via `marked` library with `.prose-chat` styles
+- Chat composer: Enter to send, Shift+Enter for newline, Ctrl+V to paste images
+- Decisions panel is resizable (drag divider) and collapsible (toggle in chat header)
 
 **Sync server (Fastify + Socket.IO):**
 - `apps/sync-server/src/index.ts` — server setup, Socket.IO event handlers, Fastify routes
@@ -66,5 +78,6 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 - All code is TypeScript (ES modules). Zod for validation, ULID for IDs.
 - SQLite tables defined with Drizzle ORM in `apps/desktop/src/main/schema.ts`
 - The canonical requirements doc is `docs/docsv2.md`
-- Workspace UI is a 2-pane layout: left pane (channels/docs/members), right pane (chat or doc editor)
+- Workspace UI is a 2-pane layout: left sidebar (channels/docs/members), right content (chat with decisions panel, or doc editor with comments)
 - Event types are defined in the shared schema and must stay consistent between client and server
+- Tailwind CSS v4 with dark zinc theme
