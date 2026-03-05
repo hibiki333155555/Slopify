@@ -99,6 +99,17 @@ export const docCommentSchema = z.object({
   createdAt: unixMsSchema,
 });
 
+export const timelineReactionSchema = z.object({
+  emoji: z.string(),
+  count: z.number().int().nonnegative(),
+  reacted: z.boolean(),
+});
+
+export const replyPreviewSchema = z.object({
+  actorDisplayName: z.string(),
+  text: z.string(),
+});
+
 export const timelineEventSchema = z.object({
   id: ulidSchema,
   projectId: ulidSchema,
@@ -111,6 +122,8 @@ export const timelineEventSchema = z.object({
   actorDisplayName: nonEmptyTrimmedStringSchema,
   actorAvatarUrl: z.string().nullable(),
   timelineText: z.string(),
+  reactions: z.array(timelineReactionSchema).optional(),
+  replyPreview: replyPreviewSchema.optional(),
 });
 
 export const workspaceStateSchema = z.object({

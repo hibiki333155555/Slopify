@@ -1,5 +1,6 @@
 import type {
   AddDocCommentCommand,
+  AddReactionCommand,
   CreateChatChannelCommand,
   CreateDocCommand,
   CreateProjectCommand,
@@ -8,6 +9,7 @@ import type {
   PostMessageCommand,
   RecordDecisionCommand,
   RenameChatChannelCommand,
+  RemoveReactionCommand,
   RenameDocCommand,
   SetupCommand,
   TimelineFilter,
@@ -62,6 +64,8 @@ export interface DesktopApi {
 
   listTimeline(filter: TimelineFilter): Promise<TimelineEvent[]>;
   postMessage(input: PostMessageCommand): Promise<void>;
+  addReaction(input: AddReactionCommand): Promise<void>;
+  removeReaction(input: RemoveReactionCommand): Promise<void>;
   recordDecision(input: RecordDecisionCommand): Promise<void>;
   createTask(input: CreateTaskCommand): Promise<void>;
   setTaskStatus(input: UpdateTaskStatusCommand): Promise<void>;

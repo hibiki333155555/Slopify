@@ -12,6 +12,8 @@ export const eventTypeSchema = z.enum([
   "chat.created",
   "chat.renamed",
   "message.posted",
+  "message.reaction.added",
+  "message.reaction.removed",
   "decision.recorded",
   "task.created",
   "task.completed",
@@ -46,6 +48,19 @@ export const messagePostedPayloadSchema = z.object({
   chatChannelId: ulidSchema,
   body: z.string(),
   imageDataUrl: z.string().optional(),
+  replyToEventId: ulidSchema.optional(),
+});
+
+export const messageReactionAddedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+  emoji: z.string(),
+});
+
+export const messageReactionRemovedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+  emoji: z.string(),
 });
 
 export const decisionRecordedPayloadSchema = z.object({
@@ -97,6 +112,8 @@ export const eventPayloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("chat.created"), payload: chatCreatedPayloadSchema }),
   z.object({ type: z.literal("chat.renamed"), payload: chatRenamedPayloadSchema }),
   z.object({ type: z.literal("message.posted"), payload: messagePostedPayloadSchema }),
+  z.object({ type: z.literal("message.reaction.added"), payload: messageReactionAddedPayloadSchema }),
+  z.object({ type: z.literal("message.reaction.removed"), payload: messageReactionRemovedPayloadSchema }),
   z.object({ type: z.literal("decision.recorded"), payload: decisionRecordedPayloadSchema }),
   z.object({ type: z.literal("task.created"), payload: taskCreatedPayloadSchema }),
   z.object({ type: z.literal("task.completed"), payload: taskCompletedPayloadSchema }),
@@ -132,6 +149,8 @@ export const eventSchema = z
 
     if (
       (value.type === "message.posted" ||
+        value.type === "message.reaction.added" ||
+        value.type === "message.reaction.removed" ||
         value.type === "decision.recorded" ||
         value.type === "task.created") &&
       value.chatChannelId === null

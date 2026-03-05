@@ -38,6 +38,21 @@ export const postMessageCommandSchema = z.object({
   chatChannelId: ulidSchema,
   body: z.string().trim(),
   imageDataUrl: z.string().optional(),
+  replyToEventId: ulidSchema.optional(),
+});
+
+export const addReactionCommandSchema = z.object({
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+  emoji: z.string(),
+});
+
+export const removeReactionCommandSchema = z.object({
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+  emoji: z.string(),
 });
 
 export const recordDecisionCommandSchema = z.object({
@@ -106,4 +121,6 @@ export type CreateDocCommand = z.infer<typeof createDocCommandSchema>;
 export type RenameDocCommand = z.infer<typeof renameDocCommandSchema>;
 export type UpdateDocCommand = z.infer<typeof updateDocCommandSchema>;
 export type AddDocCommentCommand = z.infer<typeof addDocCommentCommandSchema>;
+export type AddReactionCommand = z.infer<typeof addReactionCommandSchema>;
+export type RemoveReactionCommand = z.infer<typeof removeReactionCommandSchema>;
 export type TimelineFilter = z.infer<typeof timelineFilterSchema>;
