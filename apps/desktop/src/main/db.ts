@@ -102,6 +102,12 @@ CREATE TABLE IF NOT EXISTS project_read_cursors (
   last_read_at INTEGER NOT NULL
 );
 
+-- 旧クライアントが保存した時刻ベースカーソルを server_seq モードへ移行する。
+UPDATE app_meta
+SET value = '0'
+WHERE key = 'last_pulled_at'
+  AND CAST(value AS INTEGER) > 10000000000;
+
 CREATE INDEX IF NOT EXISTS idx_events_project_created_at ON events(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_sync_status ON events(sync_status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);

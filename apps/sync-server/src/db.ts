@@ -102,6 +102,15 @@ CREATE TABLE IF NOT EXISTS events (
   server_seq BIGSERIAL NOT NULL
 );
 
+-- 既存DBでも server_seq を自動で揃えて、pull の取りこぼしを防ぐ。
+CREATE SEQUENCE IF NOT EXISTS events_server_seq_seq;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS server_seq BIGINT;
+ALTER TABLE events ALTER COLUMN server_seq SET DEFAULT nextval('events_server_seq_seq');
+UPDATE events SET server_seq = nextval('events_server_seq_seq') WHERE server_seq IS NULL;
+ALTER TABLE events ALTER COLUMN server_seq SET NOT NULL;
+ALTER SEQUENCE events_server_seq_seq OWNED BY events.server_seq;
+SELECT setval('events_server_seq_seq', GREATEST(COALESCE((SELECT MAX(server_seq) FROM events), 0), 1), true);
+
 CREATE INDEX IF NOT EXISTS idx_events_project_created_at ON events(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_project_server_seq ON events(project_id, server_seq);
 
