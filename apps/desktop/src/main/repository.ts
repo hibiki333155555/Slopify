@@ -93,9 +93,15 @@ type PullResponse = { events: EventRecord[] };
 
 type InviteResponse = { inviteCode: string };
 
+type NotificationPayload = {
+  title: string;
+  body: string;
+};
+
 type SyncEmitterEvents = {
   "sync-status": SyncStatus;
   "workspace-changed": string;
+  notification: NotificationPayload;
 };
 
 class TypedEmitter {
@@ -183,6 +189,10 @@ export class DesktopRepository {
 
   public onWorkspaceChanged(listener: (projectId: string) => void): () => void {
     return this.emitter.on("workspace-changed", listener);
+  }
+
+  public onNotification(listener: (payload: NotificationPayload) => void): () => void {
+    return this.emitter.on("notification", listener);
   }
 
   public async bootstrap(): Promise<Bootstrap> {
@@ -1356,6 +1366,22 @@ export class DesktopRepository {
         this.insertEventRow(event, "synced");
         this.applyProjection(event);
         this.emitter.emit("workspace-changed", event.projectId);
+
+        // Emit notification for messages from other users
+        const myUserId = this.getMeta("user_id");
+        if (event.actorUserId !== myUserId && event.type === "message.posted") {
+          const actorRow = this.db
+            .select({ displayName: users.displayName })
+            .from(users)
+            .where(eq(users.userId, event.actorUserId))
+            .get();
+          const senderName = actorRow?.displayName ?? "Someone";
+          const body = (event.payload as Record<string, unknown>).body as string;
+          this.emitter.emit("notification", {
+            title: senderName,
+            body: body || "[image]",
+          });
+        }
       }
       this.sqlite.exec("COMMIT");
     } catch (error) {

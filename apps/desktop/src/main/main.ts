@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, Notification } from "electron";
 import { createLocalDb } from "./db.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { DesktopRepository } from "./repository.js";
@@ -45,6 +45,16 @@ const bootstrap = async (): Promise<void> => {
   const repository = new DesktopRepository(db, sqlite);
 
   registerIpcHandlers(repository);
+
+  repository.onNotification(({ title, body }) => {
+    // OS notification (Windows/Mac) — fails silently on WSL2/Linux without notification daemon
+    try { new Notification({ title, body }).show(); } catch { /* ignore */ }
+    // Renderer notification (in-app toast + sound — works everywhere)
+    for (const w of BrowserWindow.getAllWindows()) {
+      w.webContents.send("notification", { title, body });
+    }
+  });
+
   await repository.init();
   await createWindow();
 

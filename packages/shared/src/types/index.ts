@@ -82,10 +82,12 @@ export interface DesktopApi {
   listDocComments(projectId: string, docId: string): Promise<DocComment[]>;
   addDocComment(input: AddDocCommentCommand): Promise<DocComment>;
 
+  testNotification(): Promise<void>;
   getSyncStatus(): Promise<SyncStatus>;
   syncNow(): Promise<void>;
   readClipboardImage(): Promise<string | null>;
 
   onSyncStatus(listener: (status: SyncStatus) => void): () => void;
   onWorkspaceChanged(listener: (projectId: string) => void): () => void;
+  onNotification(listener: (payload: { title: string; body: string }) => void): () => void;
 }

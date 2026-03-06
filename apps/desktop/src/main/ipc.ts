@@ -69,6 +69,9 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
   );
   ipcMain.handle("add-doc-comment", async (_event, input: AddDocCommentCommand) => await repository.addDocComment(input));
 
+  ipcMain.handle("test-notification", () => {
+    sendToAll("notification", { title: "Slopify", body: "Test notification!" });
+  });
   ipcMain.handle("get-sync-status", async () => await repository.getSyncStatus());
   ipcMain.handle("sync-now", async () => await repository.syncNow());
   ipcMain.handle("read-clipboard-image", () => {

@@ -34,6 +34,7 @@ type AppState = {
   loading: boolean;
   error: string | null;
   inviteCode: string | null;
+  inAppNotification: { title: string; body: string; id: number } | null;
 
   initialize: () => Promise<void>;
   completeSetup: (input: SetupCommand) => Promise<void>;
@@ -113,6 +114,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   loading: false,
   error: null,
   inviteCode: null,
+  inAppNotification: null,
 
   initialize: async () => {
     await withBusy(set, async () => {
@@ -123,6 +125,30 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       window.desktopApi.onSyncStatus((status) => {
         set({ syncStatus: status });
+      });
+
+      window.desktopApi.onNotification(({ title, body }) => {
+        // Play notification sound via Web Audio API
+        try {
+          const ctx = new AudioContext();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 880;
+          gain.gain.value = 0.15;
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.3);
+        } catch { /* audio not available */ }
+        // Show in-app toast
+        set({ inAppNotification: { title, body, id: Date.now() } });
+        setTimeout(() => {
+          const current = get().inAppNotification;
+          if (current !== null && current.id <= Date.now() - 3000) {
+            set({ inAppNotification: null });
+          }
+        }, 4000);
       });
 
       window.desktopApi.onWorkspaceChanged(async (projectId) => {

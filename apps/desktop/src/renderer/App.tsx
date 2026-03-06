@@ -1236,6 +1236,7 @@ export default function App(): JSX.Element {
   const loading = useAppStore((state) => state.loading);
   const error = useAppStore((state) => state.error);
   const dismissError = useAppStore((state) => state.dismissError);
+  const inAppNotification = useAppStore((state) => state.inAppNotification);
 
   useEffect(() => {
     void initialize();
@@ -1253,6 +1254,13 @@ export default function App(): JSX.Element {
           >
             Close
           </button>
+        </div>
+      )}
+
+      {inAppNotification !== null && (
+        <div className="fixed top-4 right-4 z-[300] max-w-xs animate-in slide-in-from-top-2 fade-in bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-2xl px-4 py-3">
+          <p className="text-xs font-semibold text-zinc-200">{inAppNotification.title}</p>
+          <p className="text-xs text-zinc-400 mt-0.5 truncate">{inAppNotification.body}</p>
         </div>
       )}
 
