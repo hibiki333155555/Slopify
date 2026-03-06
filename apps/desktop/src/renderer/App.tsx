@@ -718,7 +718,7 @@ const WorkspaceScreen = (): JSX.Element => {
                       </div>
                       {/* Hover actions */}
                       {entry.type === "message.posted" && !isEditing && (
-                        <div className="absolute right-2 top-0 hidden group-hover:flex items-center gap-0.5 bg-zinc-800 border border-zinc-700/60 rounded-md shadow-lg px-0.5 py-0.5 -translate-y-1/2">
+                        <div className="absolute right-2 top-0 hidden group-hover:flex items-center gap-0.5 bg-zinc-800 border border-zinc-700/60 rounded-md shadow-lg px-0.5 py-0.5 -translate-y-1/2" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={() => setReplyingTo({ id: entry.id, actorDisplayName: entry.actorDisplayName, text: entry.timelineText })}
