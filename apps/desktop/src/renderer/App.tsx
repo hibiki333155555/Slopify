@@ -732,7 +732,7 @@ const WorkspaceScreen = (): JSX.Element => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setEmojiPickerFor(emojiPickerFor === entry.id ? null : entry.id)}
+                            onClick={() => { setMoreMenuFor(null); setEmojiPickerFor(emojiPickerFor === entry.id ? null : entry.id); }}
                             className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
                             title="React"
                           >
@@ -781,7 +781,7 @@ const WorkspaceScreen = (): JSX.Element => {
                             <div className="relative">
                               <button
                                 type="button"
-                                onClick={() => setMoreMenuFor(moreMenuFor === entry.id ? null : entry.id)}
+                                onClick={() => { setEmojiPickerFor(null); setMoreMenuFor(moreMenuFor === entry.id ? null : entry.id); }}
                                 className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
                                 title="More"
                               >
