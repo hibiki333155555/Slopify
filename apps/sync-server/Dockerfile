@@ -3,7 +3,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN npm install --workspaces --include-workspace-root
+RUN npm install --workspaces --include-workspace-root --ignore-scripts
 
 RUN rm -f packages/shared/tsconfig.tsbuildinfo apps/sync-server/tsconfig.tsbuildinfo \
     && npm run -w packages/shared build \
