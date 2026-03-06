@@ -36,6 +36,7 @@ const api: DesktopApi = {
   listDocComments: async (projectId, docId) => await ipcRenderer.invoke("list-doc-comments", projectId, docId),
   addDocComment: async (input) => await ipcRenderer.invoke("add-doc-comment", input),
 
+  testNotification: async () => await ipcRenderer.invoke("test-notification"),
   getSyncStatus: async () => await ipcRenderer.invoke("get-sync-status"),
   syncNow: async () => await ipcRenderer.invoke("sync-now"),
   readClipboardImage: async () => await ipcRenderer.invoke("read-clipboard-image"),
@@ -54,6 +55,14 @@ const api: DesktopApi = {
     };
     ipcRenderer.on("workspace-changed", handler);
     return () => ipcRenderer.off("workspace-changed", handler);
+  },
+
+  onNotification: (listener: (payload: { title: string; body: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { title: string; body: string }): void => {
+      listener(payload);
+    };
+    ipcRenderer.on("notification", handler);
+    return () => ipcRenderer.off("notification", handler);
   },
 };
 
