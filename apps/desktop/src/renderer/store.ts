@@ -52,6 +52,8 @@ type AppState = {
   createChannel: (name: string) => Promise<void>;
 
   postMessage: (body: string, imageDataUrl?: string, replyToEventId?: string) => Promise<void>;
+  editMessage: (messageEventId: string, body: string) => Promise<void>;
+  deleteMessage: (messageEventId: string) => Promise<void>;
   addReaction: (messageEventId: string, emoji: string) => Promise<void>;
   removeReaction: (messageEventId: string, emoji: string) => Promise<void>;
   recordDecision: (text: string) => Promise<void>;
@@ -295,6 +297,37 @@ export const useAppStore = create<AppState>((set, get) => ({
         body,
         imageDataUrl,
         replyToEventId,
+      });
+      await get().selectChatChannel(workspace.selectedItemId);
+    });
+  },
+
+  editMessage: async (messageEventId, body) => {
+    await withBusy(set, async () => {
+      const workspace = get().activeWorkspace;
+      if (workspace === null || workspace.selectedType !== "chat") {
+        return;
+      }
+      await window.desktopApi.editMessage({
+        projectId: workspace.projectId,
+        chatChannelId: workspace.selectedItemId,
+        messageEventId,
+        body,
+      });
+      await get().selectChatChannel(workspace.selectedItemId);
+    });
+  },
+
+  deleteMessage: async (messageEventId) => {
+    await withBusy(set, async () => {
+      const workspace = get().activeWorkspace;
+      if (workspace === null || workspace.selectedType !== "chat") {
+        return;
+      }
+      await window.desktopApi.deleteMessage({
+        projectId: workspace.projectId,
+        chatChannelId: workspace.selectedItemId,
+        messageEventId,
       });
       await get().selectChatChannel(workspace.selectedItemId);
     });

@@ -5,6 +5,8 @@ import type {
   CreateDocCommand,
   CreateProjectCommand,
   CreateTaskCommand,
+  DeleteMessageCommand,
+  EditMessageCommand,
   JoinProjectCommand,
   PostMessageCommand,
   RecordDecisionCommand,
@@ -65,6 +67,8 @@ export interface DesktopApi {
 
   listTimeline(filter: TimelineFilter): Promise<TimelineEvent[]>;
   postMessage(input: PostMessageCommand): Promise<void>;
+  editMessage(input: EditMessageCommand): Promise<void>;
+  deleteMessage(input: DeleteMessageCommand): Promise<void>;
   addReaction(input: AddReactionCommand): Promise<void>;
   removeReaction(input: RemoveReactionCommand): Promise<void>;
   recordDecision(input: RecordDecisionCommand): Promise<void>;

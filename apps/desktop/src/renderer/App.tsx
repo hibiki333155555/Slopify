@@ -364,7 +364,10 @@ const WorkspaceScreen = (): JSX.Element => {
   const selectDoc = useAppStore((state) => state.selectDoc);
   const createChannel = useAppStore((state) => state.createChannel);
 
+  const bootstrap = useAppStore((state) => state.bootstrap);
   const postMessage = useAppStore((state) => state.postMessage);
+  const editMessage = useAppStore((state) => state.editMessage);
+  const deleteMessage = useAppStore((state) => state.deleteMessage);
   const addReaction = useAppStore((state) => state.addReaction);
   const removeReaction = useAppStore((state) => state.removeReaction);
   const recordDecision = useAppStore((state) => state.recordDecision);
@@ -384,6 +387,10 @@ const WorkspaceScreen = (): JSX.Element => {
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; actorDisplayName: string; text: string } | null>(null);
   const [emojiPickerFor, setEmojiPickerFor] = useState<string | null>(null);
+  const [moreMenuFor, setMoreMenuFor] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [shiftHeld, setShiftHeld] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [decisionsOpen, setDecisionsOpen] = useState(true);
   const [decisionWidth, setDecisionWidth] = useState(320);
@@ -395,6 +402,16 @@ const WorkspaceScreen = (): JSX.Element => {
     const el = messagesRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [workspace?.timeline.length]);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(true); };
+    const up = (e: KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(false); };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
+  }, []);
+
+  const myUserId = bootstrap?.me?.userId ?? null;
 
   const onDividerMouseDown = useCallback(() => {
     isDragging.current = true;
@@ -604,7 +621,7 @@ const WorkspaceScreen = (): JSX.Element => {
                 </div>
 
                 {/* Messages */}
-                <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+                <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5" onClick={() => { setMoreMenuFor(null); setEmojiPickerFor(null); }}>
                   {workspace.timeline.map((entry) => {
                     const isSystemEvent = entry.type !== "message.posted" && entry.type !== "decision.recorded";
                     if (isSystemEvent) {
@@ -617,6 +634,8 @@ const WorkspaceScreen = (): JSX.Element => {
                         </li>
                       );
                     }
+                    const isOwnMessage = entry.type === "message.posted" && entry.actorUserId === myUserId;
+                    const isEditing = editingMessageId === entry.id;
                     return (
                     <li key={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
                       <div className="mt-0.5">
@@ -626,6 +645,7 @@ const WorkspaceScreen = (): JSX.Element => {
                         <div className="flex items-baseline gap-2">
                           <span className="text-xs font-medium text-zinc-200">{entry.actorDisplayName}</span>
                           <span className="text-[10px] font-mono text-zinc-600">{formatTime(entry.createdAt)}</span>
+                          {entry.edited && <span className="text-[10px] text-zinc-600 italic">(edited)</span>}
                         </div>
                         {/* Reply preview */}
                         {entry.replyPreview && (
@@ -642,11 +662,38 @@ const WorkspaceScreen = (): JSX.Element => {
                             onClick={() => setLightboxSrc(entry.payload!.imageDataUrl as string)}
                           />
                         )}
-                        {entry.timelineText && (
-                          <div
-                            className="prose-chat text-xs text-zinc-400 mt-0.5 break-words"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.timelineText) }}
-                          />
+                        {isEditing ? (
+                          <div className="mt-1">
+                            <textarea
+                              className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-2 py-1.5 text-xs text-zinc-200 resize-none focus:outline-none focus:border-violet-500"
+                              value={editBody}
+                              onChange={(e) => setEditBody(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  if (editBody.trim()) {
+                                    void editMessage(entry.id, editBody.trim());
+                                    setEditingMessageId(null);
+                                  }
+                                }
+                                if (e.key === "Escape") {
+                                  setEditingMessageId(null);
+                                }
+                              }}
+                              rows={2}
+                              autoFocus
+                            />
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] text-zinc-600">Enter to save · Esc to cancel</span>
+                            </div>
+                          </div>
+                        ) : (
+                          entry.timelineText && (
+                            <div
+                              className="prose-chat text-xs text-zinc-400 mt-0.5 break-words"
+                              dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.timelineText) }}
+                            />
+                          )
                         )}
                         {/* Reaction pills */}
                         {entry.reactions && entry.reactions.length > 0 && (
@@ -670,7 +717,7 @@ const WorkspaceScreen = (): JSX.Element => {
                         )}
                       </div>
                       {/* Hover actions */}
-                      {entry.type === "message.posted" && (
+                      {entry.type === "message.posted" && !isEditing && (
                         <div className="absolute right-2 top-0 hidden group-hover:flex items-center gap-0.5 bg-zinc-800 border border-zinc-700/60 rounded-md shadow-lg px-0.5 py-0.5 -translate-y-1/2">
                           <button
                             type="button"
@@ -696,6 +743,90 @@ const WorkspaceScreen = (): JSX.Element => {
                               <path d="M5.5 10a2.5 2.5 0 0 0 5 0" />
                             </svg>
                           </button>
+                          {/* Shift+hover: show edit/delete directly */}
+                          {isOwnMessage && shiftHeld && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMessageId(entry.id);
+                                  setEditBody(entry.timelineText);
+                                }}
+                                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                                title="Edit"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                  <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm("Delete this message?")) {
+                                    void deleteMessage(entry.id);
+                                  }
+                                }}
+                                className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-zinc-700 transition-colors"
+                                title="Delete"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                  <path d="M2 4h12M5.5 4V2.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v5M9.5 7v5" />
+                                  <path d="M3.5 4l.5 9.5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1L12.5 4" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
+                          {/* Three-dot menu for own messages (without Shift) */}
+                          {isOwnMessage && !shiftHeld && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setMoreMenuFor(moreMenuFor === entry.id ? null : entry.id)}
+                                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                                title="More"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                  <circle cx="3" cy="8" r="1.5" />
+                                  <circle cx="8" cy="8" r="1.5" />
+                                  <circle cx="13" cy="8" r="1.5" />
+                                </svg>
+                              </button>
+                              {moreMenuFor === entry.id && (
+                                <div className="absolute right-0 top-full mt-1 bg-zinc-800 border border-zinc-700/60 rounded-md shadow-xl z-20 py-1 min-w-[120px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingMessageId(entry.id);
+                                      setEditBody(entry.timelineText);
+                                      setMoreMenuFor(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors flex items-center gap-2"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                      <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" />
+                                    </svg>
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMoreMenuFor(null);
+                                      if (window.confirm("Delete this message?")) {
+                                        void deleteMessage(entry.id);
+                                      }
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-zinc-700 transition-colors flex items-center gap-2"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                      <path d="M2 4h12M5.5 4V2.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V4M6.5 7v5M9.5 7v5" />
+                                      <path d="M3.5 4l.5 9.5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1L12.5 4" />
+                                    </svg>
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {/* Emoji picker popup */}
                           {emojiPickerFor === entry.id && (
                             <div className="absolute right-0 top-full mt-1 flex gap-0.5 bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-xl px-1 py-1 z-10">

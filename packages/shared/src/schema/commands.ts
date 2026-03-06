@@ -41,6 +41,19 @@ export const postMessageCommandSchema = z.object({
   replyToEventId: ulidSchema.optional(),
 });
 
+export const editMessageCommandSchema = z.object({
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+  body: z.string().trim().min(1),
+});
+
+export const deleteMessageCommandSchema = z.object({
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+});
+
 export const addReactionCommandSchema = z.object({
   projectId: ulidSchema,
   chatChannelId: ulidSchema,
@@ -121,6 +134,8 @@ export type CreateDocCommand = z.infer<typeof createDocCommandSchema>;
 export type RenameDocCommand = z.infer<typeof renameDocCommandSchema>;
 export type UpdateDocCommand = z.infer<typeof updateDocCommandSchema>;
 export type AddDocCommentCommand = z.infer<typeof addDocCommentCommandSchema>;
+export type EditMessageCommand = z.infer<typeof editMessageCommandSchema>;
+export type DeleteMessageCommand = z.infer<typeof deleteMessageCommandSchema>;
 export type AddReactionCommand = z.infer<typeof addReactionCommandSchema>;
 export type RemoveReactionCommand = z.infer<typeof removeReactionCommandSchema>;
 export type TimelineFilter = z.infer<typeof timelineFilterSchema>;

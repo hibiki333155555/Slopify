@@ -122,6 +122,7 @@ export const timelineEventSchema = z.object({
   actorDisplayName: nonEmptyTrimmedStringSchema,
   actorAvatarUrl: z.string().nullable(),
   timelineText: z.string(),
+  edited: z.boolean().optional(),
   reactions: z.array(timelineReactionSchema).optional(),
   replyPreview: replyPreviewSchema.optional(),
 });

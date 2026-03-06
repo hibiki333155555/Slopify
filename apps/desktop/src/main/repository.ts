@@ -4,6 +4,8 @@ import { ulid } from "ulid";
 import {
   addDocCommentCommandSchema,
   addReactionCommandSchema,
+  deleteMessageCommandSchema,
+  editMessageCommandSchema,
   bootstrapSchema,
   createChatChannelCommandSchema,
   createDocCommandSchema,
@@ -24,6 +26,8 @@ import {
   updateSettingsCommandSchema,
   updateTaskStatusCommandSchema,
   type AddReactionCommand,
+  type DeleteMessageCommand,
+  type EditMessageCommand,
   type Bootstrap,
   type ChatChannel,
   type CreateChatChannelCommand,
@@ -768,16 +772,27 @@ export class DesktopRepository {
             )
             .all(filter.projectId, filter.workspaceItemId) as EventRow[]);
 
-    // Separate reaction events from regular timeline events
+    // Separate meta events (reactions, edits, deletes) from regular timeline events
     const reactionRows: EventRow[] = [];
     const timelineRows: EventRow[] = [];
+    const deletedMessageIds = new Set<string>();
+    const editedMessages = new Map<string, string>(); // messageEventId -> latest body
     for (const row of rows) {
       if (row.type === "message.reaction.added" || row.type === "message.reaction.removed") {
         reactionRows.push(row);
+      } else if (row.type === "message.deleted") {
+        const payload = parseJson<Record<string, unknown>>(row.payload_json);
+        deletedMessageIds.add(payload.messageEventId as string);
+      } else if (row.type === "message.edited") {
+        const payload = parseJson<Record<string, unknown>>(row.payload_json);
+        editedMessages.set(payload.messageEventId as string, payload.body as string);
       } else {
         timelineRows.push(row);
       }
     }
+
+    // Filter out deleted messages
+    const filteredRows = timelineRows.filter((row) => !deletedMessageIds.has(row.id));
 
     // Build reactions map: messageEventId -> { emoji -> { count, users } }
     const reactionsMap = new Map<string, Map<string, { count: number; users: Set<string> }>>();
@@ -808,12 +823,25 @@ export class DesktopRepository {
 
     // Build a lookup for reply previews
     const timelineById = new Map<string, EventRow>();
-    for (const row of timelineRows) {
+    for (const row of filteredRows) {
       timelineById.set(row.id, row);
     }
 
-    return timelineRows.map((row) => {
-      const entry = this.hydrateTimelineEvent(row);
+    return filteredRows.map((row) => {
+      // Apply edits: override the payload body if this message was edited
+      let effectiveRow = row;
+      const editedBody = editedMessages.get(row.id);
+      if (editedBody !== undefined && row.type === "message.posted") {
+        const originalPayload = parseJson<Record<string, unknown>>(row.payload_json);
+        effectiveRow = { ...row, payload_json: JSON.stringify({ ...originalPayload, body: editedBody }) };
+      }
+
+      const entry = this.hydrateTimelineEvent(effectiveRow);
+
+      // Mark as edited
+      if (editedBody !== undefined) {
+        entry.edited = true;
+      }
 
       // Attach reactions
       const emojiMap = reactionsMap.get(row.id);
@@ -830,7 +858,7 @@ export class DesktopRepository {
       }
 
       // Attach reply preview
-      const payload = parseJson<Record<string, unknown>>(row.payload_json);
+      const payload = parseJson<Record<string, unknown>>(effectiveRow.payload_json);
       const replyToEventId = payload.replyToEventId as string | undefined;
       if (replyToEventId !== undefined) {
         const replyRow = timelineById.get(replyToEventId);
@@ -861,6 +889,39 @@ export class DesktopRepository {
     }
     const event = this.createEvent(input.projectId, "message.posted", payload, input.chatChannelId, null);
 
+    await this.appendLocalEvents([event]);
+    await this.syncNow();
+  }
+
+  public async editMessage(inputRaw: EditMessageCommand): Promise<void> {
+    const input = editMessageCommandSchema.parse(inputRaw);
+    const event = this.createEvent(
+      input.projectId,
+      "message.edited",
+      {
+        chatChannelId: input.chatChannelId,
+        messageEventId: input.messageEventId,
+        body: input.body,
+      },
+      input.chatChannelId,
+      null,
+    );
+    await this.appendLocalEvents([event]);
+    await this.syncNow();
+  }
+
+  public async deleteMessage(inputRaw: DeleteMessageCommand): Promise<void> {
+    const input = deleteMessageCommandSchema.parse(inputRaw);
+    const event = this.createEvent(
+      input.projectId,
+      "message.deleted",
+      {
+        chatChannelId: input.chatChannelId,
+        messageEventId: input.messageEventId,
+      },
+      input.chatChannelId,
+      null,
+    );
     await this.appendLocalEvents([event]);
     await this.syncNow();
   }
@@ -1688,6 +1749,10 @@ export class DesktopRepository {
       case "message.posted":
         return (payload.payload as Record<string, unknown>).body as string
           || ((payload.payload as Record<string, unknown>).imageDataUrl ? "[image]" : "");
+      case "message.edited":
+        return "";
+      case "message.deleted":
+        return "";
       case "decision.recorded":
         return `Decision: ${payload.payload.title}\n${payload.payload.body}`;
       case "task.created":

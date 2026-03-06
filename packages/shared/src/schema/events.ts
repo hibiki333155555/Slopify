@@ -12,6 +12,8 @@ export const eventTypeSchema = z.enum([
   "chat.created",
   "chat.renamed",
   "message.posted",
+  "message.edited",
+  "message.deleted",
   "message.reaction.added",
   "message.reaction.removed",
   "decision.recorded",
@@ -49,6 +51,17 @@ export const messagePostedPayloadSchema = z.object({
   body: z.string(),
   imageDataUrl: z.string().optional(),
   replyToEventId: ulidSchema.optional(),
+});
+
+export const messageEditedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
+  body: z.string(),
+});
+
+export const messageDeletedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
+  messageEventId: ulidSchema,
 });
 
 export const messageReactionAddedPayloadSchema = z.object({
@@ -112,6 +125,8 @@ export const eventPayloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("chat.created"), payload: chatCreatedPayloadSchema }),
   z.object({ type: z.literal("chat.renamed"), payload: chatRenamedPayloadSchema }),
   z.object({ type: z.literal("message.posted"), payload: messagePostedPayloadSchema }),
+  z.object({ type: z.literal("message.edited"), payload: messageEditedPayloadSchema }),
+  z.object({ type: z.literal("message.deleted"), payload: messageDeletedPayloadSchema }),
   z.object({ type: z.literal("message.reaction.added"), payload: messageReactionAddedPayloadSchema }),
   z.object({ type: z.literal("message.reaction.removed"), payload: messageReactionRemovedPayloadSchema }),
   z.object({ type: z.literal("decision.recorded"), payload: decisionRecordedPayloadSchema }),
@@ -149,6 +164,8 @@ export const eventSchema = z
 
     if (
       (value.type === "message.posted" ||
+        value.type === "message.edited" ||
+        value.type === "message.deleted" ||
         value.type === "message.reaction.added" ||
         value.type === "message.reaction.removed" ||
         value.type === "decision.recorded" ||

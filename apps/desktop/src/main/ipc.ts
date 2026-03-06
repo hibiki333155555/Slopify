@@ -10,6 +10,8 @@ import type {
   CreateDocCommand,
   CreateProjectCommand,
   CreateTaskCommand,
+  DeleteMessageCommand,
+  EditMessageCommand,
   JoinProjectCommand,
   PostMessageCommand,
   RecordDecisionCommand,
@@ -50,6 +52,8 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
 
   ipcMain.handle("list-timeline", async (_event, filter: TimelineFilter) => await repository.listTimeline(filter));
   ipcMain.handle("post-message", async (_event, input: PostMessageCommand) => await repository.postMessage(input));
+  ipcMain.handle("edit-message", async (_event, input: EditMessageCommand) => await repository.editMessage(input));
+  ipcMain.handle("delete-message", async (_event, input: DeleteMessageCommand) => await repository.deleteMessage(input));
   ipcMain.handle("add-reaction", async (_event, input: AddReactionCommand) => await repository.addReaction(input));
   ipcMain.handle("remove-reaction", async (_event, input: RemoveReactionCommand) => await repository.removeReaction(input));
   ipcMain.handle("record-decision", async (_event, input: RecordDecisionCommand) => await repository.recordDecision(input));
