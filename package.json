@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run build -w packages/shared && docker compose up -d --wait postgres && set -a && . ./.env && set +a && concurrently -k -n server,desktop -c cyan,green \"npm run dev:sync-server\" \"npm run dev:desktop\"",
+    "dev": "npm run build -w packages/shared && docker compose up -d --wait postgres && dotenv -- concurrently -k -n server,desktop -c cyan,green \"npm run dev:sync-server\" \"npm run dev:desktop\"",
     "build": "npm run -ws build",
     "postinstall": "npm run -w apps/desktop rebuild:native",
     "dev:desktop": "npm run -w apps/desktop dev:desktop",
@@ -20,6 +20,8 @@
     "test:e2e:runtime": "npx playwright test --project=runtime"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2"
+    "@playwright/test": "^1.58.2",
+    "cross-env": "^10.1.0",
+    "dotenv-cli": "^11.0.0"
   }
 }

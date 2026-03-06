@@ -9,7 +9,7 @@
     "dev:renderer": "vite --host 127.0.0.1 --port 5173",
     "dev:main": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "predev:electron": "npm run rebuild:native",
-    "dev:electron": "wait-on tcp:127.0.0.1:5173 file:dist/main/main.js && ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron dist/main/main.js",
+    "dev:electron": "wait-on tcp:127.0.0.1:5173 file:dist/main/main.js && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron dist/main/main.js",
     "dev:desktop": "concurrently -k \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "rebuild:native": "electron-builder install-app-deps",
     "build": "tsc -p tsconfig.json",
