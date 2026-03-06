@@ -508,10 +508,10 @@ const WorkspaceScreen = (): JSX.Element => {
                   className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left text-xs transition-colors ${
                     workspace.selectedItemId === channel.chatChannelId
                       ? "bg-zinc-800 text-zinc-100"
-                      : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                      : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100"
                   }`}
                 >
-                  <span className="text-zinc-600">#</span>
+                  <span className="text-zinc-500">#</span>
                   <span className="truncate">{channel.name}</span>
                 </button>
               ))}
@@ -552,7 +552,7 @@ const WorkspaceScreen = (): JSX.Element => {
                   className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left text-xs transition-colors ${
                     workspace.selectedItemId === doc.docId
                       ? "bg-zinc-800 text-zinc-100"
-                      : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                      : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100"
                   }`}
                 >
                   <span className="truncate">{doc.title}</span>
@@ -590,7 +590,7 @@ const WorkspaceScreen = (): JSX.Element => {
               {workspace.data.members.map((member) => (
                 <li key={member.userId} className="flex items-center gap-2 px-2.5 py-1">
                   <Avatar name={member.displayName} url={member.avatarUrl} size={5} />
-                  <span className="text-xs text-zinc-400 truncate">{member.displayName}</span>
+                  <span className="text-xs text-zinc-300 truncate">{member.displayName}</span>
                 </li>
               ))}
             </ul>
@@ -644,7 +644,7 @@ const WorkspaceScreen = (): JSX.Element => {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-xs font-medium text-zinc-200">{entry.actorDisplayName}</span>
-                          <span className="text-[10px] font-mono text-zinc-600">{formatTime(entry.createdAt)}</span>
+                          <span className="text-[10px] font-mono text-zinc-500">{formatTime(entry.createdAt)}</span>
                           {entry.edited && <span className="text-[10px] text-zinc-600 italic">(edited)</span>}
                         </div>
                         {/* Reply preview */}
@@ -690,7 +690,7 @@ const WorkspaceScreen = (): JSX.Element => {
                         ) : (
                           entry.timelineText && (
                             <div
-                              className="prose-chat text-xs text-zinc-400 mt-0.5 break-words"
+                              className="prose-chat text-xs text-zinc-200 mt-0.5 break-words"
                               dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.timelineText) }}
                             />
                           )
@@ -1084,9 +1084,9 @@ const WorkspaceScreen = (): JSX.Element => {
                         <div className="min-w-0">
                           <div className="flex items-baseline gap-2">
                             <span className="text-[11px] font-medium text-zinc-300">{commentName}</span>
-                            <span className="text-[10px] font-mono text-zinc-600">{formatTime(comment.createdAt)}</span>
+                            <span className="text-[10px] font-mono text-zinc-500">{formatTime(comment.createdAt)}</span>
                           </div>
-                          <p className="text-xs text-zinc-400 mt-0.5 whitespace-pre-wrap">{comment.body}</p>
+                          <p className="text-xs text-zinc-300 mt-0.5 whitespace-pre-wrap">{comment.body}</p>
                         </div>
                       </li>
                       );

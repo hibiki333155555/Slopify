@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Inter", "Segoe UI", "Hiragino Sans", "Meiryo", system-ui, sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 /* Markdown in chat messages */
 .prose-chat p { margin: 0.25em 0; }
 .prose-chat p:first-child { margin-top: 0; }
