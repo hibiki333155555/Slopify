@@ -1571,6 +1571,8 @@ export class DesktopRepository {
         break;
       }
       case "message.posted":
+      case "message.edited":
+      case "message.deleted":
       case "message.reaction.added":
       case "message.reaction.removed": {
         break;
