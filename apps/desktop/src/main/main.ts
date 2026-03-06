@@ -23,6 +23,18 @@ const createWindow = async (): Promise<void> => {
     },
   });
 
+  window.webContents.on("before-input-event", (_event, input) => {
+    if (!input.control && !input.meta) return;
+    const wc = window.webContents;
+    if (input.key === "=" || input.key === "+") {
+      wc.setZoomLevel(wc.getZoomLevel() + 0.5);
+    } else if (input.key === "-") {
+      wc.setZoomLevel(wc.getZoomLevel() - 0.5);
+    } else if (input.key === "0") {
+      wc.setZoomLevel(0);
+    }
+  });
+
   const devUrl = process.env.ELECTRON_RENDERER_URL;
   if (devUrl !== undefined && devUrl.length > 0) {
     await window.loadURL(devUrl);
