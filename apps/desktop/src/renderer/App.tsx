@@ -379,8 +379,7 @@ const WorkspaceScreen = (): JSX.Element => {
   const [docTitle, setDocTitle] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [commentBody, setCommentBody] = useState("");
-  const [decisionTitle, setDecisionTitle] = useState("");
-  const [decisionBody, setDecisionBody] = useState("");
+  const [decisionText, setDecisionText] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; actorDisplayName: string; text: string } | null>(null);
@@ -836,8 +835,7 @@ const WorkspaceScreen = (): JSX.Element => {
                         .filter((d) => d.chatChannelId === workspace.selectedItemId)
                         .map((decision) => (
                           <li key={decision.decisionId} className="px-2 py-1.5 rounded bg-zinc-900/40">
-                            <div className="text-xs font-medium text-zinc-300">{decision.title}</div>
-                            <div className="text-[11px] text-zinc-500 mt-0.5">{decision.body}</div>
+                            <div className="text-xs text-zinc-300 whitespace-pre-wrap">{decision.title}</div>
                           </li>
                         ))}
                     </ul>
@@ -848,27 +846,19 @@ const WorkspaceScreen = (): JSX.Element => {
                     className="p-4 border-t border-zinc-800/60 shrink-0 flex flex-col gap-1.5"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      const title = decisionTitle.trim();
-                      const body = decisionBody.trim();
-                      if (title.length === 0 || body.length === 0) return;
-                      void recordDecision(title, body);
-                      setDecisionTitle("");
-                      setDecisionBody("");
+                      const text = decisionText.trim();
+                      if (text.length === 0) return;
+                      void recordDecision(text);
+                      setDecisionText("");
                     }}
                   >
-                    <input
-                      value={decisionTitle}
-                      onChange={(e) => setDecisionTitle(e.target.value)}
-                      placeholder="Decision title"
+                    <textarea
+                      value={decisionText}
+                      onChange={(e) => setDecisionText(e.target.value)}
+                      placeholder="Record a decision..."
                       required
-                      className="w-full px-2 py-1 bg-zinc-800/80 border border-zinc-700/60 rounded text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
-                    />
-                    <input
-                      value={decisionBody}
-                      onChange={(e) => setDecisionBody(e.target.value)}
-                      placeholder="Decision detail"
-                      required
-                      className="w-full px-2 py-1 bg-zinc-800/80 border border-zinc-700/60 rounded text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                      rows={2}
+                      className="w-full px-2 py-1 bg-zinc-800/80 border border-zinc-700/60 rounded text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
                     />
                     <button
                       type="submit"

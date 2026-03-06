@@ -54,7 +54,7 @@ type AppState = {
   postMessage: (body: string, imageDataUrl?: string, replyToEventId?: string) => Promise<void>;
   addReaction: (messageEventId: string, emoji: string) => Promise<void>;
   removeReaction: (messageEventId: string, emoji: string) => Promise<void>;
-  recordDecision: (title: string, body: string) => Promise<void>;
+  recordDecision: (text: string) => Promise<void>;
   createTask: (title: string) => Promise<void>;
   setTaskStatus: (taskId: string, completed: boolean) => Promise<void>;
 
@@ -332,7 +332,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  recordDecision: async (title, body) => {
+  recordDecision: async (text) => {
     await withBusy(set, async () => {
       const workspace = get().activeWorkspace;
       if (workspace === null || workspace.selectedType !== "chat") {
@@ -341,8 +341,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       await window.desktopApi.recordDecision({
         projectId: workspace.projectId,
         chatChannelId: workspace.selectedItemId,
-        title,
-        body,
+        title: text,
+        body: text,
       });
       await get().selectChatChannel(workspace.selectedItemId);
     });
