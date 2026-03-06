@@ -242,10 +242,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openProject: async (projectId) => {
     await withBusy(set, async () => {
-      const [payload, presence] = await Promise.all([
-        window.desktopApi.openWorkspace(projectId),
-        window.desktopApi.getPresence(projectId),
-      ]);
+      const payload = await window.desktopApi.openWorkspace(projectId);
+      const presence = await window.desktopApi.getPresence(projectId).catch(() => []);
       set({
         activeWorkspace: toWorkspaceState(projectId, payload),
         screen: "workspace",
