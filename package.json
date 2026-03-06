@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "npm run build -w packages/shared && docker compose up -d --wait postgres && set -a && . ./.env && set +a && concurrently -k -n server,desktop -c cyan,green \"npm run dev:sync-server\" \"npm run dev:desktop\"",
     "build": "npm run -ws build",
+    "postinstall": "npm run -w apps/desktop rebuild:native",
     "dev:desktop": "npm run -w apps/desktop dev:desktop",
     "dev:sync-server": "npm run -w apps/sync-server dev",
     "dist": "npm run build -w packages/shared && npm run dist -w apps/desktop",
