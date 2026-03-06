@@ -605,7 +605,19 @@ const WorkspaceScreen = (): JSX.Element => {
 
                 {/* Messages */}
                 <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-                  {workspace.timeline.map((entry) => (
+                  {workspace.timeline.map((entry) => {
+                    const isSystemEvent = entry.type !== "message.posted" && entry.type !== "decision.recorded";
+                    if (isSystemEvent) {
+                      return (
+                        <li key={entry.id} className="flex justify-center py-1">
+                          <span className="text-[11px] text-zinc-600 italic">
+                            {entry.timelineText}
+                            <span className="ml-2 text-[10px] font-mono text-zinc-700">{formatTime(entry.createdAt)}</span>
+                          </span>
+                        </li>
+                      );
+                    }
+                    return (
                     <li key={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
                       <div className="mt-0.5">
                         <Avatar name={entry.actorDisplayName} url={entry.actorAvatarUrl} size={8} />
@@ -705,7 +717,8 @@ const WorkspaceScreen = (): JSX.Element => {
                         </div>
                       )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
 
                 {/* Composer */}
