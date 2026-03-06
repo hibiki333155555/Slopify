@@ -55,6 +55,7 @@ export interface DesktopApi {
   createProject(input: CreateProjectCommand): Promise<ProjectSummary>;
   joinProject(input: JoinProjectCommand): Promise<ProjectSummary>;
   createInvite(projectId: string): Promise<{ inviteCode: string }>;
+  leaveProject(projectId: string): Promise<void>;
 
   openWorkspace(projectId: string): Promise<OpenWorkspaceResult>;
   listMembers(projectId: string): Promise<Member[]>;

@@ -511,6 +511,26 @@ export class DesktopRepository {
     return response;
   }
 
+  public async leaveProject(projectId: string): Promise<void> {
+    this.sqlite.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.delete(events).where(eq(events.projectId, projectId)).run();
+      this.db.delete(decisions).where(eq(decisions.projectId, projectId)).run();
+      this.db.delete(tasks).where(eq(tasks.projectId, projectId)).run();
+      this.db.delete(docComments).where(eq(docComments.projectId, projectId)).run();
+      this.db.delete(docs).where(eq(docs.projectId, projectId)).run();
+      this.db.delete(chatChannels).where(eq(chatChannels.projectId, projectId)).run();
+      this.db.delete(projectMembers).where(eq(projectMembers.projectId, projectId)).run();
+      this.db.delete(invites).where(eq(invites.projectId, projectId)).run();
+      this.db.delete(projectReadCursors).where(eq(projectReadCursors.projectId, projectId)).run();
+      this.db.delete(projects).where(eq(projects.projectId, projectId)).run();
+      this.sqlite.exec("COMMIT");
+    } catch (error) {
+      this.sqlite.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   public async openWorkspace(projectId: string): Promise<OpenWorkspaceResult> {
     this.sqlite
       .prepare(

@@ -40,6 +40,7 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
   ipcMain.handle("create-project", async (_event, input: CreateProjectCommand) => await repository.createProject(input));
   ipcMain.handle("join-project", async (_event, input: JoinProjectCommand) => await repository.joinProject(input));
   ipcMain.handle("create-invite", async (_event, projectId: string) => await repository.createInvite(projectId));
+  ipcMain.handle("leave-project", async (_event, projectId: string) => await repository.leaveProject(projectId));
 
   ipcMain.handle("open-workspace", async (_event, projectId: string) => await repository.openWorkspace(projectId));
   ipcMain.handle("list-members", async (_event, projectId: string) => await repository.listMembers(projectId));

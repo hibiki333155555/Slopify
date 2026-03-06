@@ -154,6 +154,7 @@ const ProjectsScreen = (): JSX.Element => {
   const createProject = useAppStore((state) => state.createProject);
   const joinProject = useAppStore((state) => state.joinProject);
   const openProject = useAppStore((state) => state.openProject);
+  const leaveProject = useAppStore((state) => state.leaveProject);
   const navigateSettings = useAppStore((state) => state.navigateSettings);
   const syncStatus = useAppStore((state) => state.syncStatus);
 
@@ -261,30 +262,46 @@ const ProjectsScreen = (): JSX.Element => {
             ) : (
               <div className="mt-3 space-y-1">
                 {projects.map((project) => (
-                  <button
-                    key={project.projectId}
-                    type="button"
-                    onClick={() => void openProject(project.projectId)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left hover:bg-zinc-800/50 transition-colors group"
-                  >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${project.unreadCount > 0 ? "bg-emerald-400" : "bg-zinc-700"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-zinc-200 group-hover:text-zinc-100 truncate">
-                        {project.name}
+                  <div key={project.projectId} className="flex items-center gap-1 group">
+                    <button
+                      type="button"
+                      onClick={() => void openProject(project.projectId)}
+                      className="flex-1 flex items-center gap-3 px-3 py-2.5 rounded-md text-left hover:bg-zinc-800/50 transition-colors"
+                    >
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${project.unreadCount > 0 ? "bg-emerald-400" : "bg-zinc-700"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-zinc-200 group-hover:text-zinc-100 truncate">
+                          {project.name}
+                        </div>
+                        <div className="text-[10px] font-mono text-zinc-600">
+                          {project.memberCount} members · {formatDateTime(project.lastActivityAt)}
+                        </div>
                       </div>
-                      <div className="text-[10px] font-mono text-zinc-600">
-                        {project.memberCount} members · {formatDateTime(project.lastActivityAt)}
-                      </div>
-                    </div>
-                    {project.unreadCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-400 shrink-0">
-                        {project.unreadCount}
-                      </span>
-                    )}
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-700 group-hover:text-zinc-500 shrink-0">
-                      <path d="M6 3l5 5-5 5" />
-                    </svg>
-                  </button>
+                      {project.unreadCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-400 shrink-0">
+                          {project.unreadCount}
+                        </span>
+                      )}
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-700 group-hover:text-zinc-500 shrink-0">
+                        <path d="M6 3l5 5-5 5" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`"${project.name}" から退出しますか？`)) {
+                          void leaveProject(project.projectId);
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-900/30 text-zinc-600 hover:text-red-400 transition-all shrink-0"
+                      title="Leave project"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M6 2H3v12h3M11 4l4 4-4 4M15 8H7" />
+                      </svg>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

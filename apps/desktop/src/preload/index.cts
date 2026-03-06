@@ -11,6 +11,7 @@ const api: DesktopApi = {
   createProject: async (input) => await ipcRenderer.invoke("create-project", input),
   joinProject: async (input) => await ipcRenderer.invoke("join-project", input),
   createInvite: async (projectId) => await ipcRenderer.invoke("create-invite", projectId),
+  leaveProject: async (projectId) => await ipcRenderer.invoke("leave-project", projectId),
 
   openWorkspace: async (projectId) => await ipcRenderer.invoke("open-workspace", projectId),
   listMembers: async (projectId) => await ipcRenderer.invoke("list-members", projectId),

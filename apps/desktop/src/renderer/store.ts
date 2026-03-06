@@ -45,6 +45,7 @@ type AppState = {
   joinProject: (inviteCode: string) => Promise<void>;
   openProject: (projectId: string) => Promise<void>;
   createInvite: () => Promise<void>;
+  leaveProject: (projectId: string) => Promise<void>;
 
   selectChatChannel: (chatChannelId: string) => Promise<void>;
   selectDoc: (docId: string) => Promise<void>;
@@ -204,6 +205,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       const { inviteCode } = await window.desktopApi.createInvite(workspace.projectId);
       set({ inviteCode });
+    });
+  },
+
+  leaveProject: async (projectId) => {
+    await withBusy(set, async () => {
+      await window.desktopApi.leaveProject(projectId);
+      const projects = await window.desktopApi.listProjects();
+      set({ projects, activeWorkspace: null, screen: "projects" });
     });
   },
 

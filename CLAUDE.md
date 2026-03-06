@@ -55,6 +55,8 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 - All mutations produce events (e.g. `project.created`, `message.posted`, `task.completed`)
 - Desktop stores events in SQLite; server stores in PostgreSQL
 - Sync uses Socket.IO: client pulls events since last sync, pushes pending events, server broadcasts to other clients
+- Pull cursor uses `server_seq` (server-side auto-increment), NOT client `created_at` timestamps — this prevents missed events when clients push stale offline data
+- DB schema auto-migrates on server startup (`db.ts` bootstrapSql adds `server_seq` column to existing tables)
 
 **Desktop app (Electron + React):**
 - Main process: `apps/desktop/src/main/` — `repository.ts` is the data access layer over SQLite/Drizzle, `ipc.ts` registers all IPC handlers, `sync-client.ts` manages Socket.IO connection
@@ -68,6 +70,8 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 - Real-time relay: receives events from desktop clients via Socket.IO, stores in PostgreSQL, broadcasts to other connected clients. Offline clients pull missed events on reconnect.
 - `apps/sync-server/src/index.ts` — server setup, Socket.IO event handlers, Fastify routes
 - `apps/sync-server/src/repository.ts` — PostgreSQL data access
+- `apps/sync-server/src/db.ts` — PostgreSQL schema bootstrap with auto-migration (adds `server_seq` to existing DBs)
+- Socket.IO `maxHttpBufferSize` and Fastify `bodyLimit` set to 50 MB for base64 image payloads
 - Auth is a single shared password (`SERVER_ACCESS_PASSWORD` env var)
 - Deployed via `docker compose up -d --build` on any Linux server with Docker (see `docs/deployment-guide.md`)
 
