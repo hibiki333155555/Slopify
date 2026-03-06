@@ -41,6 +41,13 @@ export type SyncStatus = {
   lastError: string | null;
 };
 
+export type PresenceStatus = "online" | "away" | "offline";
+
+export type UserPresence = {
+  userId: string;
+  status: PresenceStatus;
+};
+
 export type OpenWorkspaceResult = {
   workspace: WorkspaceState;
   timeline: TimelineEvent[];
@@ -87,7 +94,11 @@ export interface DesktopApi {
   syncNow(): Promise<void>;
   readClipboardImage(): Promise<string | null>;
 
+  getPresence(projectId: string): Promise<UserPresence[]>;
+  updatePresence(status: "online" | "away"): void;
+
   onSyncStatus(listener: (status: SyncStatus) => void): () => void;
   onWorkspaceChanged(listener: (projectId: string) => void): () => void;
   onNotification(listener: (payload: { title: string; body: string }) => void): () => void;
+  onPresenceChanged(listener: (presence: UserPresence[]) => void): () => void;
 }

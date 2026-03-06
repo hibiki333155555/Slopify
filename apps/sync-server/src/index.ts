@@ -34,6 +34,35 @@ const pushSchema = z.object({
   serverAccessPassword: z.string().min(1),
 });
 
+type PresenceStatus = "online" | "away" | "offline";
+
+type ConnectedUser = {
+  userId: string;
+  status: PresenceStatus;
+  projectIds: string[];
+};
+
+// Track all connected users: socketId → ConnectedUser
+const connectedUsers = new Map<string, ConnectedUser>();
+
+const getProjectPresence = (projectId: string): { userId: string; status: PresenceStatus }[] => {
+  const seen = new Map<string, PresenceStatus>();
+  for (const user of connectedUsers.values()) {
+    if (!user.projectIds.includes(projectId)) continue;
+    const existing = seen.get(user.userId);
+    // If user has multiple connections, use the best status
+    if (existing === undefined || (existing !== "online" && user.status === "online")) {
+      seen.set(user.userId, user.status);
+    }
+  }
+  return [...seen.entries()].map(([userId, status]) => ({ userId, status }));
+};
+
+const broadcastPresence = (io: Server, projectId: string): void => {
+  const presence = getProjectPresence(projectId);
+  io.to(`project:${projectId}`).emit("presence:status", { projectId, presence });
+};
+
 const start = async (): Promise<void> => {
   const { pool, config } = await createServerDb();
   const repository = new SyncRepository(pool);
@@ -125,8 +154,32 @@ const start = async (): Promise<void> => {
       socket.join(`project:${projectId}`);
     }
 
+    // Track presence
+    connectedUsers.set(socket.id, { userId, status: "online", projectIds: memberProjectIds });
+    for (const projectId of memberProjectIds) {
+      broadcastPresence(io, projectId);
+    }
+
     socket.on("disconnect", (reason) => {
       console.log(`[socket.io] disconnected: userId=${userId} reason=${reason}`);
+      connectedUsers.delete(socket.id);
+      for (const projectId of memberProjectIds) {
+        broadcastPresence(io, projectId);
+      }
+    });
+
+    socket.on("presence:update", (payload: { status: "online" | "away" }) => {
+      const user = connectedUsers.get(socket.id);
+      if (user !== undefined && user.status !== payload.status) {
+        user.status = payload.status;
+        for (const projectId of user.projectIds) {
+          broadcastPresence(io, projectId);
+        }
+      }
+    });
+
+    socket.on("presence:list", (payload: { projectId: string }, ack: (response: { presence: { userId: string; status: PresenceStatus }[] }) => void) => {
+      ack({ presence: getProjectPresence(payload.projectId) });
     });
 
     socket.on("sync:pull", async (rawPayload: unknown, ack: (response: { events: EventRecord[]; cursor?: number }) => void) => {

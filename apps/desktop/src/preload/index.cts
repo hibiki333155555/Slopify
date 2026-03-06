@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopApi, SyncStatus } from "@slopify/shared";
+import type { DesktopApi, SyncStatus, UserPresence } from "@slopify/shared";
 
 const api: DesktopApi = {
   bootstrap: async () => await ipcRenderer.invoke("bootstrap"),
@@ -36,6 +36,9 @@ const api: DesktopApi = {
   listDocComments: async (projectId, docId) => await ipcRenderer.invoke("list-doc-comments", projectId, docId),
   addDocComment: async (input) => await ipcRenderer.invoke("add-doc-comment", input),
 
+  getPresence: async (projectId) => await ipcRenderer.invoke("get-presence", projectId),
+  updatePresence: (status) => { ipcRenderer.invoke("update-presence", status); },
+
   testNotification: async () => await ipcRenderer.invoke("test-notification"),
   getSyncStatus: async () => await ipcRenderer.invoke("get-sync-status"),
   syncNow: async () => await ipcRenderer.invoke("sync-now"),
@@ -55,6 +58,14 @@ const api: DesktopApi = {
     };
     ipcRenderer.on("workspace-changed", handler);
     return () => ipcRenderer.off("workspace-changed", handler);
+  },
+
+  onPresenceChanged: (listener: (presence: UserPresence[]) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, presence: UserPresence[]): void => {
+      listener(presence);
+    };
+    ipcRenderer.on("presence-changed", handler);
+    return () => ipcRenderer.off("presence-changed", handler);
   },
 
   onNotification: (listener: (payload: { title: string; body: string }) => void) => {

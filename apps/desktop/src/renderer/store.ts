@@ -11,6 +11,7 @@ import type {
   SyncStatus,
   TimelineEvent,
   UpdateSettingsCommand,
+  UserPresence,
   WorkspaceState,
 } from "@slopify/shared";
 
@@ -35,6 +36,7 @@ type AppState = {
   error: string | null;
   inviteCode: string | null;
   inAppNotification: { title: string; body: string; id: number } | null;
+  presence: UserPresence[];
 
   initialize: () => Promise<void>;
   completeSetup: (input: SetupCommand) => Promise<void>;
@@ -115,6 +117,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
   inviteCode: null,
   inAppNotification: null,
+  presence: [],
 
   initialize: async () => {
     await withBusy(set, async () => {
@@ -150,6 +153,29 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         }, 4000);
       });
+
+      window.desktopApi.onPresenceChanged((presence) => {
+        set({ presence });
+      });
+
+      // Idle detection: 5 minutes → away, activity → online
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      let isAway = false;
+      const IDLE_MS = 5 * 60 * 1000;
+      const resetIdle = (): void => {
+        if (isAway) {
+          isAway = false;
+          window.desktopApi.updatePresence("online");
+        }
+        if (idleTimer !== null) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          isAway = true;
+          window.desktopApi.updatePresence("away");
+        }, IDLE_MS);
+      };
+      document.addEventListener("mousemove", resetIdle, { passive: true });
+      document.addEventListener("keydown", resetIdle, { passive: true });
+      resetIdle();
 
       window.desktopApi.onWorkspaceChanged(async (projectId) => {
         const current = get().activeWorkspace;
@@ -216,11 +242,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openProject: async (projectId) => {
     await withBusy(set, async () => {
-      const payload = await window.desktopApi.openWorkspace(projectId);
+      const [payload, presence] = await Promise.all([
+        window.desktopApi.openWorkspace(projectId),
+        window.desktopApi.getPresence(projectId),
+      ]);
       set({
         activeWorkspace: toWorkspaceState(projectId, payload),
         screen: "workspace",
         inviteCode: null,
+        presence,
       });
     });
   },

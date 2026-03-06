@@ -55,6 +55,7 @@ import {
   type UpdateDocCommand,
   type UpdateSettingsCommand,
   type UpdateTaskStatusCommand,
+  type UserPresence,
   type WorkspaceState,
 } from "@slopify/shared";
 import type Database from "better-sqlite3";
@@ -102,6 +103,7 @@ type SyncEmitterEvents = {
   "sync-status": SyncStatus;
   "workspace-changed": string;
   notification: NotificationPayload;
+  "presence-changed": UserPresence[];
 };
 
 class TypedEmitter {
@@ -133,6 +135,9 @@ export class DesktopRepository {
     },
     onProjectHint: async () => {
       await this.syncNow();
+    },
+    onPresenceChanged: (_projectId, presence) => {
+      this.emitter.emit("presence-changed", presence);
     },
     onConnectionChanged: (connected) => {
       this.currentSyncStatus.connected = connected;
@@ -193,6 +198,18 @@ export class DesktopRepository {
 
   public onNotification(listener: (payload: NotificationPayload) => void): () => void {
     return this.emitter.on("notification", listener);
+  }
+
+  public onPresenceChanged(listener: (presence: UserPresence[]) => void): () => void {
+    return this.emitter.on("presence-changed", listener);
+  }
+
+  public async getPresence(projectId: string): Promise<UserPresence[]> {
+    return await this.syncClient.getPresence(projectId);
+  }
+
+  public updatePresence(status: "online" | "away"): void {
+    this.syncClient.updatePresence(status);
   }
 
   public async bootstrap(): Promise<Bootstrap> {

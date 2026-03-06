@@ -377,6 +377,7 @@ const WorkspaceScreen = (): JSX.Element => {
   const createDoc = useAppStore((state) => state.createDoc);
   const updateDoc = useAppStore((state) => state.updateDoc);
   const addDocComment = useAppStore((state) => state.addDocComment);
+  const presence = useAppStore((state) => state.presence);
 
   const [channelName, setChannelName] = useState("");
   const [docTitle, setDocTitle] = useState("");
@@ -587,12 +588,21 @@ const WorkspaceScreen = (): JSX.Element => {
           <div className="p-3">
             <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Members</span>
             <ul className="mt-2 space-y-1">
-              {workspace.data.members.map((member) => (
+              {workspace.data.members.map((member) => {
+                const memberPresence = presence.find((p) => p.userId === member.userId);
+                const status = memberPresence?.status ?? "offline";
+                const dotColor = status === "online" ? "bg-emerald-400" : status === "away" ? "bg-amber-400" : "bg-zinc-600";
+                const dotTitle = status === "online" ? "Online" : status === "away" ? "Away" : "Offline";
+                return (
                 <li key={member.userId} className="flex items-center gap-2 px-2.5 py-1">
-                  <Avatar name={member.displayName} url={member.avatarUrl} size={5} />
-                  <span className="text-xs text-zinc-300 truncate">{member.displayName}</span>
+                  <div className="relative shrink-0">
+                    <Avatar name={member.displayName} url={member.avatarUrl} size={5} />
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 ${dotColor}`} title={dotTitle} />
+                  </div>
+                  <span className={`text-xs truncate ${status === "offline" ? "text-zinc-500" : "text-zinc-300"}`}>{member.displayName}</span>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         </aside>

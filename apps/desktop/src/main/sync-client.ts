@@ -1,10 +1,11 @@
 import { io, type Socket } from "socket.io-client";
-import type { EventRecord, Settings } from "@slopify/shared";
+import type { EventRecord, Settings, UserPresence } from "@slopify/shared";
 
 export type SyncClientOptions = {
   onRemoteEvents: (events: EventRecord[]) => Promise<void>;
   onProjectHint: (projectId: string) => Promise<void>;
   onConnectionChanged: (connected: boolean) => void;
+  onPresenceChanged: (projectId: string, presence: UserPresence[]) => void;
 };
 
 export type SyncIdentity = {
@@ -96,6 +97,10 @@ export class SyncClient {
 
     socket.on("sync:events", async (payload: { events: EventRecord[] }) => {
       await this.options.onRemoteEvents(payload.events);
+    });
+
+    socket.on("presence:status", (payload: { projectId: string; presence: UserPresence[] }) => {
+      this.options.onPresenceChanged(payload.projectId, payload.presence);
     });
 
     this.socket = socket;
@@ -239,6 +244,25 @@ export class SyncClient {
     );
 
     return response.acceptedIds;
+  }
+
+  public updatePresence(status: "online" | "away"): void {
+    if (this.socket?.connected) {
+      this.socket.emit("presence:update", { status });
+    }
+  }
+
+  public async getPresence(projectId: string): Promise<UserPresence[]> {
+    if (this.socket === null || !this.socket.connected) {
+      return [];
+    }
+    const response = await emitWithAck<{ presence: UserPresence[] }>(
+      this.socket,
+      "presence:list",
+      { projectId },
+      5000,
+    );
+    return response.presence;
   }
 
   private fingerprint(identity: SyncIdentity): string {

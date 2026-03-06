@@ -72,6 +72,8 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
   ipcMain.handle("test-notification", () => {
     sendToAll("notification", { title: "Slopify", body: "Test notification!" });
   });
+  ipcMain.handle("get-presence", async (_event, projectId: string) => await repository.getPresence(projectId));
+  ipcMain.handle("update-presence", (_event, status: "online" | "away") => repository.updatePresence(status));
   ipcMain.handle("get-sync-status", async () => await repository.getSyncStatus());
   ipcMain.handle("sync-now", async () => await repository.syncNow());
   ipcMain.handle("read-clipboard-image", () => {
@@ -109,5 +111,9 @@ if ($img) {
 
   repository.onWorkspaceChanged((projectId) => {
     sendToAll("workspace-changed", { projectId });
+  });
+
+  repository.onPresenceChanged((presence) => {
+    sendToAll("presence-changed", presence);
   });
 };
