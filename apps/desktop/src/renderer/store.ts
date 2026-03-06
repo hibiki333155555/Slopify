@@ -303,33 +303,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   editMessage: async (messageEventId, body) => {
-    await withBusy(set, async () => {
-      const workspace = get().activeWorkspace;
-      if (workspace === null || workspace.selectedType !== "chat") {
-        return;
-      }
-      await window.desktopApi.editMessage({
-        projectId: workspace.projectId,
-        chatChannelId: workspace.selectedItemId,
-        messageEventId,
-        body,
-      });
-      await get().selectChatChannel(workspace.selectedItemId);
+    const workspace = get().activeWorkspace;
+    if (workspace === null || workspace.selectedType !== "chat") {
+      return;
+    }
+    await window.desktopApi.editMessage({
+      projectId: workspace.projectId,
+      chatChannelId: workspace.selectedItemId,
+      messageEventId,
+      body,
     });
   },
 
   deleteMessage: async (messageEventId) => {
-    await withBusy(set, async () => {
-      const workspace = get().activeWorkspace;
-      if (workspace === null || workspace.selectedType !== "chat") {
-        return;
-      }
-      await window.desktopApi.deleteMessage({
-        projectId: workspace.projectId,
-        chatChannelId: workspace.selectedItemId,
-        messageEventId,
-      });
-      await get().selectChatChannel(workspace.selectedItemId);
+    const workspace = get().activeWorkspace;
+    if (workspace === null || workspace.selectedType !== "chat") {
+      return;
+    }
+    await window.desktopApi.deleteMessage({
+      projectId: workspace.projectId,
+      chatChannelId: workspace.selectedItemId,
+      messageEventId,
     });
   },
 
