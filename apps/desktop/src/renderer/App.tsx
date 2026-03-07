@@ -363,6 +363,7 @@ const WorkspaceScreen = (): JSX.Element => {
   const selectChatChannel = useAppStore((state) => state.selectChatChannel);
   const selectDoc = useAppStore((state) => state.selectDoc);
   const createChannel = useAppStore((state) => state.createChannel);
+  const deleteChannel = useAppStore((state) => state.deleteChannel);
 
   const bootstrap = useAppStore((state) => state.bootstrap);
   const postMessage = useAppStore((state) => state.postMessage);
@@ -502,19 +503,40 @@ const WorkspaceScreen = (): JSX.Element => {
             <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Chats</span>
             <nav className="mt-2 space-y-0.5">
               {workspace.data.channels.map((channel) => (
-                <button
+                <div
                   key={channel.chatChannelId}
-                  type="button"
-                  onClick={() => void selectChatChannel(channel.chatChannelId)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left text-xs transition-colors ${
+                  className={`group flex items-center rounded-md text-xs transition-colors ${
                     workspace.selectedItemId === channel.chatChannelId
                       ? "bg-zinc-800 text-zinc-100"
                       : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100"
                   }`}
                 >
-                  <span className="text-zinc-500">#</span>
-                  <span className="truncate">{channel.name}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => void selectChatChannel(channel.chatChannelId)}
+                    className="flex-1 flex items-center gap-2 px-2.5 py-1.5 text-left min-w-0"
+                  >
+                    <span className="text-zinc-500">#</span>
+                    <span className="truncate">{channel.name}</span>
+                  </button>
+                  {workspace.data.channels.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Delete #${channel.name}? Messages in this channel will no longer be accessible.`)) {
+                          void deleteChannel(channel.chatChannelId);
+                        }
+                      }}
+                      className="hidden group-hover:flex items-center justify-center w-5 h-5 mr-1 rounded text-zinc-600 hover:text-red-400 hover:bg-zinc-700/50 transition-colors shrink-0"
+                      title="Delete channel"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               ))}
             </nav>
             <form

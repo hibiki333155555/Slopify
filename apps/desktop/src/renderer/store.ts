@@ -53,6 +53,7 @@ type AppState = {
   selectChatChannel: (chatChannelId: string) => Promise<void>;
   selectDoc: (docId: string) => Promise<void>;
   createChannel: (name: string) => Promise<void>;
+  deleteChannel: (chatChannelId: string) => Promise<void>;
 
   postMessage: (body: string, imageDataUrl?: string, replyToEventId?: string) => Promise<void>;
   editMessage: (messageEventId: string, body: string) => Promise<void>;
@@ -358,6 +359,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       await get().openProject(workspace.projectId);
       await get().selectChatChannel(channel.chatChannelId);
+    });
+  },
+
+  deleteChannel: async (chatChannelId) => {
+    await withBusy(set, async () => {
+      const workspace = get().activeWorkspace;
+      if (workspace === null) {
+        return;
+      }
+      await window.desktopApi.deleteChannel({
+        projectId: workspace.projectId,
+        chatChannelId,
+      });
+      await get().openProject(workspace.projectId);
     });
   },
 

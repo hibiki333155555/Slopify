@@ -2,6 +2,7 @@ import type {
   AddDocCommentCommand,
   AddReactionCommand,
   CreateChatChannelCommand,
+  DeleteChatChannelCommand,
   CreateDocCommand,
   CreateProjectCommand,
   CreateTaskCommand,
@@ -71,6 +72,7 @@ export interface DesktopApi {
   listChannels(projectId: string): Promise<ChatChannel[]>;
   createChannel(input: CreateChatChannelCommand): Promise<ChatChannel>;
   renameChannel(input: RenameChatChannelCommand): Promise<ChatChannel>;
+  deleteChannel(input: DeleteChatChannelCommand): Promise<void>;
 
   listTimeline(filter: TimelineFilter): Promise<TimelineEvent[]>;
   postMessage(input: PostMessageCommand): Promise<void>;

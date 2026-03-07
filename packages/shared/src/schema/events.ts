@@ -11,6 +11,7 @@ export const eventTypeSchema = z.enum([
   "member.joined",
   "chat.created",
   "chat.renamed",
+  "chat.deleted",
   "message.posted",
   "message.edited",
   "message.deleted",
@@ -44,6 +45,10 @@ export const chatCreatedPayloadSchema = z.object({
 export const chatRenamedPayloadSchema = z.object({
   chatChannelId: ulidSchema,
   name: nonEmptyTrimmedStringSchema,
+});
+
+export const chatDeletedPayloadSchema = z.object({
+  chatChannelId: ulidSchema,
 });
 
 export const messagePostedPayloadSchema = z.object({
@@ -124,6 +129,7 @@ export const eventPayloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("member.joined"), payload: memberJoinedPayloadSchema }),
   z.object({ type: z.literal("chat.created"), payload: chatCreatedPayloadSchema }),
   z.object({ type: z.literal("chat.renamed"), payload: chatRenamedPayloadSchema }),
+  z.object({ type: z.literal("chat.deleted"), payload: chatDeletedPayloadSchema }),
   z.object({ type: z.literal("message.posted"), payload: messagePostedPayloadSchema }),
   z.object({ type: z.literal("message.edited"), payload: messageEditedPayloadSchema }),
   z.object({ type: z.literal("message.deleted"), payload: messageDeletedPayloadSchema }),

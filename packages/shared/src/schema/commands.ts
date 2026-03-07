@@ -33,6 +33,11 @@ export const renameChatChannelCommandSchema = z.object({
   name: nonEmptyTrimmedStringSchema,
 });
 
+export const deleteChatChannelCommandSchema = z.object({
+  projectId: ulidSchema,
+  chatChannelId: ulidSchema,
+});
+
 export const postMessageCommandSchema = z.object({
   projectId: ulidSchema,
   chatChannelId: ulidSchema,
@@ -126,6 +131,7 @@ export type CreateProjectCommand = z.infer<typeof createProjectCommandSchema>;
 export type JoinProjectCommand = z.infer<typeof joinProjectCommandSchema>;
 export type CreateChatChannelCommand = z.infer<typeof createChatChannelCommandSchema>;
 export type RenameChatChannelCommand = z.infer<typeof renameChatChannelCommandSchema>;
+export type DeleteChatChannelCommand = z.infer<typeof deleteChatChannelCommandSchema>;
 export type PostMessageCommand = z.infer<typeof postMessageCommandSchema>;
 export type RecordDecisionCommand = z.infer<typeof recordDecisionCommandSchema>;
 export type CreateTaskCommand = z.infer<typeof createTaskCommandSchema>;

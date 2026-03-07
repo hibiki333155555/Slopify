@@ -236,6 +236,13 @@ export class SyncRepository {
         );
         break;
       }
+      case "chat.deleted": {
+        await this.pool.query(
+          "DELETE FROM chat_channels WHERE chat_channel_id = $1",
+          [payload.payload.chatChannelId],
+        );
+        break;
+      }
       case "decision.recorded": {
         await this.pool.query(
           `

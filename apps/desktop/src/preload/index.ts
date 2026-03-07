@@ -16,6 +16,7 @@ const api: DesktopApi = {
   listChannels: async (projectId) => await ipcRenderer.invoke("list-channels", projectId),
   createChannel: async (input) => await ipcRenderer.invoke("create-channel", input),
   renameChannel: async (input) => await ipcRenderer.invoke("rename-channel", input),
+  deleteChannel: async (input) => await ipcRenderer.invoke("delete-channel", input),
   listTimeline: async (filter) => await ipcRenderer.invoke("list-timeline", filter),
   postMessage: async (input) => await ipcRenderer.invoke("post-message", input),
   editMessage: async (input) => await ipcRenderer.invoke("edit-message", input),

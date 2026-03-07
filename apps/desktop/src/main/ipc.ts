@@ -7,6 +7,7 @@ import type {
   AddDocCommentCommand,
   AddReactionCommand,
   CreateChatChannelCommand,
+  DeleteChatChannelCommand,
   CreateDocCommand,
   CreateProjectCommand,
   CreateTaskCommand,
@@ -49,6 +50,7 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
   ipcMain.handle("list-channels", async (_event, projectId: string) => await repository.listChannels(projectId));
   ipcMain.handle("create-channel", async (_event, input: CreateChatChannelCommand) => await repository.createChannel(input));
   ipcMain.handle("rename-channel", async (_event, input: RenameChatChannelCommand) => await repository.renameChannel(input));
+  ipcMain.handle("delete-channel", async (_event, input: DeleteChatChannelCommand) => await repository.deleteChannel(input));
 
   ipcMain.handle("list-timeline", async (_event, filter: TimelineFilter) => await repository.listTimeline(filter));
   ipcMain.handle("post-message", async (_event, input: PostMessageCommand) => await repository.postMessage(input));

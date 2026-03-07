@@ -4,6 +4,7 @@ import { ulid } from "ulid";
 import {
   addDocCommentCommandSchema,
   addReactionCommandSchema,
+  deleteChatChannelCommandSchema,
   deleteMessageCommandSchema,
   editMessageCommandSchema,
   bootstrapSchema,
@@ -26,6 +27,7 @@ import {
   updateSettingsCommandSchema,
   updateTaskStatusCommandSchema,
   type AddReactionCommand,
+  type DeleteChatChannelCommand,
   type DeleteMessageCommand,
   type EditMessageCommand,
   type Bootstrap,
@@ -763,6 +765,27 @@ export class DesktopRepository {
       createdAt: channel.createdAt,
       updatedAt: channel.updatedAt,
     };
+  }
+
+  public async deleteChannel(inputRaw: DeleteChatChannelCommand): Promise<void> {
+    const input = deleteChatChannelCommandSchema.parse(inputRaw);
+    const userId = this.requireMeta("user_id");
+
+    const event = eventSchema.parse({
+      id: ulid(),
+      projectId: input.projectId,
+      actorUserId: userId,
+      type: "chat.deleted",
+      payload: {
+        chatChannelId: input.chatChannelId,
+      },
+      chatChannelId: null,
+      docId: null,
+      createdAt: Date.now(),
+    });
+
+    await this.appendLocalEvents([event]);
+    await this.syncNow();
   }
 
   public async listTimeline(filterRaw: TimelineFilter): Promise<TimelineEvent[]> {
@@ -1518,6 +1541,13 @@ export class DesktopRepository {
           .run();
         break;
       }
+      case "chat.deleted": {
+        this.db
+          .delete(chatChannels)
+          .where(eq(chatChannels.chatChannelId, payload.payload.chatChannelId))
+          .run();
+        break;
+      }
       case "decision.recorded": {
         this.db
           .insert(decisions)
@@ -1791,6 +1821,8 @@ export class DesktopRepository {
         return `Created channel #${payload.payload.name}`;
       case "chat.renamed":
         return `Renamed channel to #${payload.payload.name}`;
+      case "chat.deleted":
+        return "Channel deleted";
       case "message.posted":
         return (payload.payload as Record<string, unknown>).body as string
           || ((payload.payload as Record<string, unknown>).imageDataUrl ? "[image]" : "");
