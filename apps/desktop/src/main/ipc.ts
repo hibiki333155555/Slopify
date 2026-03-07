@@ -62,6 +62,7 @@ export const registerIpcHandlers = (repository: DesktopRepository): void => {
   ipcMain.handle("create-task", async (_event, input: CreateTaskCommand) => await repository.createTask(input));
   ipcMain.handle("set-task-status", async (_event, input: UpdateTaskStatusCommand) => await repository.setTaskStatus(input));
 
+  ipcMain.handle("search-messages", async (_event, projectId: string, query: string) => await repository.searchMessages(projectId, query));
   ipcMain.handle("list-docs", async (_event, projectId: string) => await repository.listDocs(projectId));
   ipcMain.handle("create-doc", async (_event, input: CreateDocCommand) => await repository.createDoc(input));
   ipcMain.handle("rename-doc", async (_event, input: RenameDocCommand) => await repository.renameDoc(input));

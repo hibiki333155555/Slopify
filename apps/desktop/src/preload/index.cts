@@ -37,6 +37,7 @@ const api: DesktopApi = {
   listDocComments: async (projectId, docId) => await ipcRenderer.invoke("list-doc-comments", projectId, docId),
   addDocComment: async (input) => await ipcRenderer.invoke("add-doc-comment", input),
 
+  searchMessages: async (projectId, query) => await ipcRenderer.invoke("search-messages", projectId, query),
   getPresence: async (projectId) => await ipcRenderer.invoke("get-presence", projectId),
   updatePresence: (status) => { ipcRenderer.invoke("update-presence", status); },
 

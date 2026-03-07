@@ -54,6 +54,7 @@ import {
   type SyncStatus,
   type TimelineEvent,
   type TimelineFilter,
+  type SearchResult,
   type UpdateDocCommand,
   type UpdateSettingsCommand,
   type UpdateTaskStatusCommand,
@@ -1257,6 +1258,55 @@ export class DesktopRepository {
       anchor: row.anchor,
       createdAt: row.createdAt,
     };
+  }
+
+  public async searchMessages(projectId: string, query: string): Promise<SearchResult[]> {
+    if (query.trim().length === 0) return [];
+
+    const pattern = `%${query.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+
+    const rows = this.sqlite
+      .prepare(
+        `
+        SELECT e.id, e.project_id, e.chat_channel_id, e.created_at,
+               e.payload_json, e.actor_user_id,
+               u.display_name AS actor_display_name, u.avatar_url AS actor_avatar_url,
+               c.name AS channel_name
+        FROM events e
+        LEFT JOIN users u ON u.user_id = e.actor_user_id
+        LEFT JOIN chat_channels c ON c.chat_channel_id = e.chat_channel_id
+        WHERE e.project_id = ?
+          AND e.type = 'message.posted'
+          AND json_extract(e.payload_json, '$.body') LIKE ? ESCAPE '\\'
+        ORDER BY e.created_at DESC
+        LIMIT 50
+        `
+      )
+      .all(projectId, pattern) as Array<{
+        id: string;
+        project_id: string;
+        chat_channel_id: string | null;
+        created_at: number;
+        payload_json: string;
+        actor_user_id: string;
+        actor_display_name: string | null;
+        actor_avatar_url: string | null;
+        channel_name: string | null;
+      }>;
+
+    return rows.map((row) => {
+      const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+      return {
+        eventId: row.id,
+        projectId: row.project_id,
+        chatChannelId: row.chat_channel_id,
+        channelName: row.channel_name,
+        actorDisplayName: row.actor_display_name ?? "Unknown",
+        actorAvatarUrl: row.actor_avatar_url,
+        body: (payload.body as string) || "",
+        createdAt: row.created_at,
+      };
+    });
   }
 
   public async syncNow(): Promise<void> {

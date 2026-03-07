@@ -55,6 +55,17 @@ export type OpenWorkspaceResult = {
   docsComments: Record<string, DocComment[]>;
 };
 
+export type SearchResult = {
+  eventId: string;
+  projectId: string;
+  chatChannelId: string | null;
+  channelName: string | null;
+  actorDisplayName: string;
+  actorAvatarUrl: string | null;
+  body: string;
+  createdAt: number;
+};
+
 export interface DesktopApi {
   bootstrap(): Promise<Bootstrap>;
   completeSetup(input: SetupCommand): Promise<Bootstrap>;
@@ -95,6 +106,8 @@ export interface DesktopApi {
   getSyncStatus(): Promise<SyncStatus>;
   syncNow(): Promise<void>;
   readClipboardImage(): Promise<string | null>;
+
+  searchMessages(projectId: string, query: string): Promise<SearchResult[]>;
 
   getPresence(projectId: string): Promise<UserPresence[]>;
   updatePresence(status: "online" | "away"): void;

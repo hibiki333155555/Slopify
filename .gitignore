@@ -4,4 +4,5 @@ dist
 *.log
 .env
 test-results/
+coverage/
 release/

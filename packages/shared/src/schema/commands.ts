@@ -144,4 +144,9 @@ export type EditMessageCommand = z.infer<typeof editMessageCommandSchema>;
 export type DeleteMessageCommand = z.infer<typeof deleteMessageCommandSchema>;
 export type AddReactionCommand = z.infer<typeof addReactionCommandSchema>;
 export type RemoveReactionCommand = z.infer<typeof removeReactionCommandSchema>;
+export const searchMessagesQuerySchema = z.object({
+  projectId: ulidSchema,
+  query: z.string().min(1),
+});
+export type SearchMessagesQuery = z.infer<typeof searchMessagesQuerySchema>;
 export type TimelineFilter = z.infer<typeof timelineFilterSchema>;

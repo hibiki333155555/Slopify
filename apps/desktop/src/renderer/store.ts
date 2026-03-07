@@ -7,6 +7,7 @@ import type {
   DocComment,
   OpenWorkspaceResult,
   ProjectSummary,
+  SearchResult,
   SetupCommand,
   SyncStatus,
   TimelineEvent,
@@ -69,6 +70,16 @@ type AppState = {
   updateDoc: (docId: string, markdown: string) => Promise<void>;
   addDocComment: (docId: string, body: string) => Promise<void>;
 
+  searchQuery: string;
+  searchResults: SearchResult[];
+  searchOpen: boolean;
+  highlightEventId: string | null;
+
+  setSearchOpen: (open: boolean) => void;
+  searchMessages: (query: string) => Promise<void>;
+  clearSearch: () => void;
+  jumpToSearchResult: (result: SearchResult) => Promise<void>;
+
   navigateProjects: () => void;
   navigateSettings: () => void;
   dismissError: () => void;
@@ -119,6 +130,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   inviteCode: null,
   inAppNotification: null,
   presence: [],
+  searchQuery: "",
+  searchResults: [],
+  searchOpen: false,
+  highlightEventId: null,
 
   initialize: async () => {
     await withBusy(set, async () => {
@@ -642,6 +657,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       await get().selectDoc(docId);
     });
+  },
+
+  setSearchOpen: (open) => {
+    set({ searchOpen: open, searchQuery: "", searchResults: [] });
+  },
+
+  searchMessages: async (query) => {
+    const workspace = get().activeWorkspace;
+    if (workspace === null) return;
+    set({ searchQuery: query });
+    if (query.trim().length === 0) {
+      set({ searchResults: [] });
+      return;
+    }
+    const results = await window.desktopApi.searchMessages(workspace.projectId, query);
+    // Only update if query hasn't changed while awaiting
+    if (get().searchQuery === query) {
+      set({ searchResults: results });
+    }
+  },
+
+  clearSearch: () => {
+    set({ searchQuery: "", searchResults: [], searchOpen: false });
+  },
+
+  jumpToSearchResult: async (result) => {
+    if (result.chatChannelId !== null) {
+      await get().selectChatChannel(result.chatChannelId);
+    }
+    set({ searchOpen: false, searchQuery: "", searchResults: [], highlightEventId: result.eventId });
   },
 
   navigateProjects: () => {

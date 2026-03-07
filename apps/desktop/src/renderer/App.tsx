@@ -75,6 +75,20 @@ const formatTime = (timestamp: number): string =>
     hour12: false,
   });
 
+const formatRelativeTime = (timestamp: number): string => {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Setup Screen                                                       */
 /* ------------------------------------------------------------------ */
@@ -361,6 +375,140 @@ const ProjectsScreen = (): JSX.Element => {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Search Panel                                                       */
+/* ------------------------------------------------------------------ */
+
+const SearchPanel = (): JSX.Element => {
+  const searchOpen = useAppStore((state) => state.searchOpen);
+  const searchQuery = useAppStore((state) => state.searchQuery);
+  const searchResults = useAppStore((state) => state.searchResults);
+  const searchMessages = useAppStore((state) => state.searchMessages);
+  const clearSearch = useAppStore((state) => state.clearSearch);
+  const jumpToSearchResult = useAppStore((state) => state.jumpToSearchResult);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [localQuery, setLocalQuery] = useState("");
+
+  useEffect(() => {
+    if (searchOpen) {
+      setLocalQuery(searchQuery);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [searchOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const handleChange = (value: string): void => {
+    setLocalQuery(value);
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void searchMessages(value);
+    }, 300);
+  };
+
+  if (!searchOpen) return <></>;
+
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col bg-zinc-950/80 backdrop-blur-sm">
+      <div className="flex flex-col max-w-2xl w-full mx-auto mt-12 mb-8 flex-1 min-h-0">
+        {/* Search header */}
+        <div className="bg-zinc-900 border border-zinc-700/60 rounded-t-xl px-4 py-3 flex items-center gap-3 shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500 shrink-0">
+            <circle cx="7" cy="7" r="5" />
+            <path d="M11 11l3.5 3.5" />
+          </svg>
+          <input
+            ref={inputRef}
+            value={localQuery}
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") clearSearch();
+            }}
+            placeholder="Search messages..."
+            className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+          />
+          {localQuery.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handleChange("")}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={clearSearch}
+            className="text-[10px] font-mono text-zinc-600 border border-zinc-700 rounded px-1.5 py-0.5 hover:text-zinc-400 hover:border-zinc-600 transition-colors shrink-0"
+          >
+            ESC
+          </button>
+        </div>
+
+        {/* Results */}
+        <div className="bg-zinc-900/95 border border-t-0 border-zinc-700/60 rounded-b-xl flex-1 overflow-y-auto min-h-0">
+          {localQuery.trim().length === 0 ? (
+            <div className="flex items-center justify-center h-40">
+              <span className="text-xs text-zinc-600">Type to search messages...</span>
+            </div>
+          ) : searchResults.length === 0 && searchQuery === localQuery ? (
+            <div className="flex items-center justify-center h-40">
+              <span className="text-xs text-zinc-600">No messages found</span>
+            </div>
+          ) : searchResults.length === 0 ? (
+            <div className="flex items-center justify-center h-40">
+              <span className="text-xs text-zinc-600">Searching...</span>
+            </div>
+          ) : (
+            <ul className="py-1">
+              {searchResults.map((result) => (
+                <li key={result.eventId}>
+                  <button
+                    type="button"
+                    onClick={() => void jumpToSearchResult(result)}
+                    className="w-full text-left px-4 py-3 hover:bg-zinc-800/60 transition-colors flex gap-3"
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      <Avatar name={result.actorDisplayName} url={result.actorAvatarUrl} size={7} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {result.channelName !== null && (
+                          <span className="text-[10px] font-medium text-violet-400 bg-violet-400/10 border border-violet-400/20 rounded-full px-2 py-0.5 shrink-0">
+                            #{result.channelName}
+                          </span>
+                        )}
+                        <span className="text-[11px] font-medium text-zinc-300">{result.actorDisplayName}</span>
+                        <span className="text-[10px] font-mono text-zinc-600 ml-auto shrink-0">
+                          {formatRelativeTime(result.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400 truncate">
+                        {result.body.length > 100 ? result.body.slice(0, 100) + "..." : result.body}
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Backdrop click to close */}
+      <div className="absolute inset-0 -z-10" onClick={clearSearch} />
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
 /*  Workspace Screen                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -389,6 +537,10 @@ const WorkspaceScreen = (): JSX.Element => {
   const updateDoc = useAppStore((state) => state.updateDoc);
   const addDocComment = useAppStore((state) => state.addDocComment);
   const presence = useAppStore((state) => state.presence);
+  const searchOpen = useAppStore((state) => state.searchOpen);
+  const setSearchOpen = useAppStore((state) => state.setSearchOpen);
+  const clearSearch = useAppStore((state) => state.clearSearch);
+  const highlightEventId = useAppStore((state) => state.highlightEventId);
 
   const [channelName, setChannelName] = useState("");
   const [docTitle, setDocTitle] = useState("");
@@ -412,8 +564,27 @@ const WorkspaceScreen = (): JSX.Element => {
 
   useEffect(() => {
     const el = messagesRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && highlightEventId === null) el.scrollTop = el.scrollHeight;
   }, [workspace?.timeline.length]);
+
+  useEffect(() => {
+    if (highlightEventId === null) return;
+    const el = messagesRef.current;
+    if (el === null) return;
+    requestAnimationFrame(() => {
+      const target = el.querySelector(`[data-event-id="${highlightEventId}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        target.classList.add("search-highlight");
+        setTimeout(() => {
+          target.classList.remove("search-highlight");
+          useAppStore.setState({ highlightEventId: null });
+        }, 2000);
+      } else {
+        useAppStore.setState({ highlightEventId: null });
+      }
+    });
+  }, [highlightEventId, workspace?.timeline]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(true); };
@@ -422,6 +593,21 @@ const WorkspaceScreen = (): JSX.Element => {
     window.addEventListener("keyup", up);
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
   }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        if (searchOpen) {
+          clearSearch();
+        } else {
+          setSearchOpen(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [searchOpen, setSearchOpen, clearSearch]);
 
   const myUserId = bootstrap?.me?.userId ?? null;
 
@@ -508,6 +694,22 @@ const WorkspaceScreen = (): JSX.Element => {
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
         <aside className="w-56 bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0 overflow-y-auto">
+          {/* Search */}
+          <div className="p-3 border-b border-zinc-800/60">
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors border border-zinc-800/60"
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+                <circle cx="7" cy="7" r="5" />
+                <path d="M11 11l3.5 3.5" />
+              </svg>
+              <span className="flex-1 text-left">Search...</span>
+              <span className="text-[10px] font-mono text-zinc-700">Ctrl+K</span>
+            </button>
+          </div>
+
           {/* Channels */}
           <div className="p-3 border-b border-zinc-800/60">
             <span className="text-[10px] font-medium text-zinc-500 tracking-widest uppercase">Chats</span>
@@ -640,7 +842,8 @@ const WorkspaceScreen = (): JSX.Element => {
         </aside>
 
         {/* Main content */}
-        <section className="flex-1 min-w-0 flex flex-col">
+        <section className="flex-1 min-w-0 flex flex-col relative">
+          <SearchPanel />
           {workspace.selectedType === "chat" ? (
             <div className="flex flex-1 min-h-0">
               {/* Chat panel */}
@@ -679,7 +882,7 @@ const WorkspaceScreen = (): JSX.Element => {
                     const isOwnMessage = entry.type === "message.posted" && entry.actorUserId === myUserId;
                     const isEditing = editingMessageId === entry.id;
                     return (
-                    <li key={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
+                    <li key={entry.id} data-event-id={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
                       <div className="mt-0.5">
                         <Avatar name={entry.actorDisplayName} url={entry.actorAvatarUrl} size={8} />
                       </div>
