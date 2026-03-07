@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, Notification } from "electron";
@@ -7,8 +8,22 @@ import { DesktopRepository } from "./repository.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
+const resolveWindowIcon = (): string | undefined => {
+  if (process.platform === "darwin") {
+    return undefined;
+  }
+
+  const candidates = [
+    path.join(app.getAppPath(), "build", "icon.png"),
+    path.join(currentDir, "../../build/icon.png"),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
+};
+
 const createWindow = async (): Promise<void> => {
   const preloadPath = path.join(currentDir, "../preload/index.cjs");
+  const iconPath = resolveWindowIcon();
 
   const window = new BrowserWindow({
     width: 1280,
@@ -16,6 +31,7 @@ const createWindow = async (): Promise<void> => {
     minWidth: 960,
     minHeight: 640,
     title: "Slopify",
+    ...(iconPath !== undefined ? { icon: iconPath } : {}),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

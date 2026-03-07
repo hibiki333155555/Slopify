@@ -20,15 +20,18 @@ asar: true
 
 mac:
   category: public.app-category.productivity
+  icon: build/icon.icns
   target:
     - dmg
     - zip
 
 win:
+  icon: build/icon.ico
   target:
     - nsis
 
 linux:
+  icon: build/icon.png
   target:
     - AppImage
   category: Office
