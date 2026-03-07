@@ -181,10 +181,29 @@ const ProjectsScreen = (): JSX.Element => {
   const leaveProject = useAppStore((state) => state.leaveProject);
   const navigateSettings = useAppStore((state) => state.navigateSettings);
   const syncStatus = useAppStore((state) => state.syncStatus);
+  const bootstrap = useAppStore((state) => state.bootstrap);
 
   const [projectName, setProjectName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [projectPresence, setProjectPresence] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!syncStatus.connected || !bootstrap?.me) return;
+    const myUserId = bootstrap.me.userId;
+    let cancelled = false;
+    const fetchPresence = async () => {
+      const results: Record<string, boolean> = {};
+      for (const p of projects) {
+        const presence = await window.desktopApi.getPresence(p.projectId).catch(() => []);
+        results[p.projectId] = presence.some((u) => u.userId !== myUserId && u.status === "online");
+      }
+      if (!cancelled) setProjectPresence(results);
+    };
+    void fetchPresence();
+    const interval = setInterval(() => void fetchPresence(), 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [projects, syncStatus.connected, bootstrap?.me]);
 
   const onCreate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -215,10 +234,10 @@ const ProjectsScreen = (): JSX.Element => {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="pill px-2 py-0.5 rounded-full text-[10px] font-mono border border-zinc-700 text-zinc-400">
+              <span className={`pill px-2 py-0.5 rounded-full text-[10px] font-mono border ${syncStatus.connected ? "border-emerald-500/40 text-emerald-400" : "border-red-500/40 text-red-400"}`}>
                 {syncStatus.connected ? "Online" : "Offline"}
               </span>
-              <span className="pill px-2 py-0.5 rounded-full text-[10px] font-mono border border-zinc-700 text-zinc-400">
+              <span className={`pill px-2 py-0.5 rounded-full text-[10px] font-mono border ${syncStatus.pendingCount > 0 ? "border-amber-500/40 text-amber-400" : "border-zinc-700 text-zinc-400"}`}>
                 Pending sync: {syncStatus.pendingCount}
               </span>
               <button
@@ -292,7 +311,7 @@ const ProjectsScreen = (): JSX.Element => {
                       onClick={() => void openProject(project.projectId)}
                       className="flex-1 flex items-center gap-3 px-3 py-2.5 rounded-md text-left hover:bg-zinc-800/50 transition-colors"
                     >
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${project.unreadCount > 0 ? "bg-emerald-400" : "bg-zinc-700"}`} />
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${projectPresence[project.projectId] ? "bg-emerald-400" : "bg-zinc-700"}`} title={projectPresence[project.projectId] ? "Members online" : "No members online"} />
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-zinc-200 group-hover:text-zinc-100 truncate">
                           {project.name}
