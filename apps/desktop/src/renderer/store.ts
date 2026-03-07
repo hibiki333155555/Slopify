@@ -178,9 +178,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       resetIdle();
 
       window.desktopApi.onWorkspaceChanged(async (projectId) => {
-        const current = get().activeWorkspace;
-        if (current !== null && current.projectId === projectId) {
-          await get().openProject(projectId);
+        const ws = get().activeWorkspace;
+        if (ws !== null && ws.projectId === projectId) {
+          const selType = ws.selectedType;
+          const selId = ws.selectedItemId;
+          const [timeline, channels, docs] = await Promise.all([
+            window.desktopApi.listTimeline({
+              projectId,
+              workspaceType: selType,
+              workspaceItemId: selId,
+            }),
+            window.desktopApi.listChannels(projectId),
+            window.desktopApi.listDocs(projectId),
+          ]);
+          set((state) => {
+            const aw = state.activeWorkspace;
+            if (aw === null || aw.projectId !== projectId) return {};
+            const selChanged = aw.selectedType !== selType || aw.selectedItemId !== selId;
+            return {
+              activeWorkspace: {
+                ...aw,
+                data: { ...aw.data, channels, docs },
+                ...(selChanged ? {} : { timeline }),
+              },
+            };
+          });
         }
         await get().refreshProjects();
       });
@@ -367,6 +389,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       messageEventId,
       body,
     });
+    await get().selectChatChannel(workspace.selectedItemId);
   },
 
   deleteMessage: async (messageEventId) => {
@@ -379,6 +402,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       chatChannelId: workspace.selectedItemId,
       messageEventId,
     });
+    await get().selectChatChannel(workspace.selectedItemId);
   },
 
   addReaction: async (messageEventId, emoji) => {
