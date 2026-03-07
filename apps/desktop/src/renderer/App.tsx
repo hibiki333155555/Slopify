@@ -556,7 +556,7 @@ const WorkspaceScreen = (): JSX.Element => {
   const [editBody, setEditBody] = useState("");
   const [shiftHeld, setShiftHeld] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  const [decisionsOpen, setDecisionsOpen] = useState(true);
+  const [decisionsOpen, setDecisionsOpen] = useState(false);
   const [decisionWidth, setDecisionWidth] = useState(320);
   const [resizing, setResizing] = useState(false);
   const isDragging = useRef(false);
