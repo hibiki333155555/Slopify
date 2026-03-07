@@ -1886,7 +1886,7 @@ export class DesktopRepository {
     const payload = eventPayloadSchema.parse({ type: event.type, payload: event.payload });
     switch (payload.type) {
       case "project.created":
-        return `Created project \"${payload.payload.name}\"`;
+        return `Created project "${payload.payload.name}"`;
       case "member.joined":
         return `${payload.payload.memberDisplayName} joined the project`;
       case "chat.created":
