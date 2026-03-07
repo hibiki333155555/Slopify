@@ -15,13 +15,17 @@
     "dist:mac": "npm run build -w packages/shared && npm run dist:mac -w apps/desktop",
     "dist:win": "npm run build -w packages/shared && npm run dist:win -w apps/desktop",
     "dist:linux": "npm run build -w packages/shared && npm run dist:linux -w apps/desktop",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --project=ui",
     "test:e2e:runtime": "npx playwright test --project=runtime"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@vitest/coverage-v8": "^4.0.18",
     "cross-env": "^10.1.0",
-    "dotenv-cli": "^11.0.0"
+    "dotenv-cli": "^11.0.0",
+    "vitest": "^4.0.18"
   }
 }
