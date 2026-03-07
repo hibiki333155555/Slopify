@@ -1,13 +1,23 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import { getSelectedDoc, useAppStore } from "./store.js";
 
 marked.setOptions({ breaks: true, gfm: true });
 
-const renderMarkdown = (text: string): string =>
-  marked.parse(text, { async: false }) as string;
+const markdownCache = new Map<string, string>();
+const renderMarkdown = (text: string): string => {
+  const cached = markdownCache.get(text);
+  if (cached !== undefined) return cached;
+  const result = marked.parse(text, { async: false }) as string;
+  markdownCache.set(text, result);
+  if (markdownCache.size > 500) {
+    const firstKey = markdownCache.keys().next().value;
+    if (firstKey !== undefined) markdownCache.delete(firstKey);
+  }
+  return result;
+};
 
-const Avatar = ({ name, url, size = 8 }: { name: string; url?: string | null | undefined; size?: number | undefined }): JSX.Element => {
+const Avatar = React.memo(function Avatar({ name, url, size = 8 }: { name: string; url?: string | null | undefined; size?: number | undefined }): JSX.Element {
   const px = size * 4;
   const textSize = size <= 5 ? "text-[9px]" : size <= 6 ? "text-[9px]" : "text-[11px]";
   return url ? (
@@ -17,7 +27,7 @@ const Avatar = ({ name, url, size = 8 }: { name: string; url?: string | null | u
       {(name[0] ?? "?").toUpperCase()}
     </div>
   );
-};
+});
 
 const AvatarPicker = ({ name, avatarUrl, onChange }: { name: string; avatarUrl: string; onChange: (url: string) => void }): JSX.Element => (
   <div className="block mb-4">
@@ -690,6 +700,7 @@ const WorkspaceScreen = (): JSX.Element => {
                           <img
                             src={entry.payload.imageDataUrl as string}
                             alt=""
+                            loading="lazy"
                             className="mt-1 max-w-xs max-h-60 rounded-md border border-zinc-700/40 cursor-pointer hover:opacity-80 transition-opacity"
                             onClick={() => setLightboxSrc(entry.payload!.imageDataUrl as string)}
                           />
@@ -920,7 +931,7 @@ const WorkspaceScreen = (): JSX.Element => {
                   )}
                   {pendingImage !== null && (
                     <div className="mb-2 relative inline-block">
-                      <img src={pendingImage} alt="preview" className="max-h-32 rounded-md border border-zinc-700/40" />
+                      <img src={pendingImage} alt="preview" loading="lazy" className="max-h-32 rounded-md border border-zinc-700/40" />
                       <button
                         type="button"
                         onClick={() => setPendingImage(null)}

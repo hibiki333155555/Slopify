@@ -615,9 +615,30 @@ export class DesktopRepository {
       workspaceItemId: selectedWorkspaceItemId,
     });
 
+    const allCommentRows = this.db
+      .select()
+      .from(docComments)
+      .where(eq(docComments.projectId, projectId))
+      .orderBy(asc(docComments.createdAt))
+      .all();
+
     const docsComments: Record<string, DocComment[]> = {};
     for (const doc of docsList) {
-      docsComments[doc.docId] = await this.listDocComments(projectId, doc.docId);
+      docsComments[doc.docId] = [];
+    }
+    for (const row of allCommentRows) {
+      const bucket = docsComments[row.docId];
+      if (bucket !== undefined) {
+        bucket.push({
+          commentId: row.commentId,
+          projectId: row.projectId,
+          docId: row.docId,
+          authorUserId: row.authorUserId,
+          body: row.body,
+          anchor: row.anchor,
+          createdAt: row.createdAt,
+        });
+      }
     }
 
     const workspace: WorkspaceState = {
@@ -1389,17 +1410,18 @@ export class DesktopRepository {
       return;
     }
 
+    const incomingIds = orderedEvents.map((e) => e.id);
+    const existingRows = this.db
+      .select({ id: events.id })
+      .from(events)
+      .where(inArray(events.id, incomingIds))
+      .all();
+    const existingIds = new Set(existingRows.map((r) => r.id));
+
     this.sqlite.exec("BEGIN IMMEDIATE");
     try {
       for (const event of orderedEvents) {
-        const exists =
-          this.db
-            .select({ count: sql<number>`count(*)` })
-            .from(events)
-            .where(eq(events.id, event.id))
-            .get()?.count ?? 0;
-
-        if (exists > 0) {
+        if (existingIds.has(event.id)) {
           continue;
         }
 

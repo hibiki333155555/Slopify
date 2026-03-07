@@ -115,6 +115,9 @@ CREATE INDEX IF NOT EXISTS idx_decisions_project ON decisions(project_id);
 CREATE INDEX IF NOT EXISTS idx_channels_project ON chat_channels(project_id);
 CREATE INDEX IF NOT EXISTS idx_docs_project ON docs(project_id);
 CREATE INDEX IF NOT EXISTS idx_doc_comments_doc ON doc_comments(doc_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_chat_channel ON events(chat_channel_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_doc ON events(doc_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_doc_comments_project_doc ON doc_comments(project_id, doc_id, created_at);
 `;
 
 export const createLocalDb = (dataDir: string): { db: LocalDb; sqlite: Database.Database } => {

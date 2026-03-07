@@ -357,8 +357,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         projectId: workspace.projectId,
         name,
       });
-      await get().openProject(workspace.projectId);
-      await get().selectChatChannel(channel.chatChannelId);
+      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
+      const timeline = await window.desktopApi.listTimeline({
+        projectId: workspace.projectId,
+        workspaceType: "chat",
+        workspaceItemId: channel.chatChannelId,
+      });
+      set({
+        activeWorkspace: {
+          projectId: workspace.projectId,
+          data: payload.workspace,
+          timeline,
+          docComments: payload.docsComments,
+          selectedType: "chat",
+          selectedItemId: channel.chatChannelId,
+        },
+        screen: "workspace",
+      });
     });
   },
 
@@ -389,7 +404,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         imageDataUrl,
         replyToEventId,
       });
-      await get().selectChatChannel(workspace.selectedItemId);
     });
   },
 
@@ -432,7 +446,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         messageEventId,
         emoji,
       });
-      await get().selectChatChannel(workspace.selectedItemId);
     });
   },
 
@@ -448,7 +461,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         messageEventId,
         emoji,
       });
-      await get().selectChatChannel(workspace.selectedItemId);
     });
   },
 
@@ -464,7 +476,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         title: text,
         body: text,
       });
-      await get().selectChatChannel(workspace.selectedItemId);
     });
   },
 
@@ -480,8 +491,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         title,
       };
       await window.desktopApi.createTask(command);
-      await get().openProject(workspace.projectId);
-      await get().selectChatChannel(workspace.selectedItemId);
+      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
+      const timeline = await window.desktopApi.listTimeline({
+        projectId: workspace.projectId,
+        workspaceType: "chat",
+        workspaceItemId: workspace.selectedItemId,
+      });
+      set({
+        activeWorkspace: {
+          projectId: workspace.projectId,
+          data: payload.workspace,
+          timeline,
+          docComments: payload.docsComments,
+          selectedType: "chat",
+          selectedItemId: workspace.selectedItemId,
+        },
+        screen: "workspace",
+      });
     });
   },
 
@@ -496,10 +522,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         taskId,
         completed,
       });
-      await get().openProject(workspace.projectId);
-      if (workspace.selectedType === "chat") {
-        await get().selectChatChannel(workspace.selectedItemId);
-      }
+      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
+      const timeline = await window.desktopApi.listTimeline({
+        projectId: workspace.projectId,
+        workspaceType: workspace.selectedType,
+        workspaceItemId: workspace.selectedItemId,
+      });
+      set({
+        activeWorkspace: {
+          projectId: workspace.projectId,
+          data: payload.workspace,
+          timeline,
+          docComments: payload.docsComments,
+          selectedType: workspace.selectedType,
+          selectedItemId: workspace.selectedItemId,
+        },
+        screen: "workspace",
+      });
     });
   },
 
@@ -514,8 +553,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         title: input.title,
         markdown: input.markdown,
       });
-      await get().openProject(workspace.projectId);
-      await get().selectDoc(doc.docId);
+      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
+      const timeline = await window.desktopApi.listTimeline({
+        projectId: workspace.projectId,
+        workspaceType: "doc",
+        workspaceItemId: doc.docId,
+      });
+      const comments = await window.desktopApi.listDocComments(workspace.projectId, doc.docId);
+      set({
+        activeWorkspace: {
+          projectId: workspace.projectId,
+          data: payload.workspace,
+          timeline,
+          docComments: { ...payload.docsComments, [doc.docId]: comments },
+          selectedType: "doc",
+          selectedItemId: doc.docId,
+        },
+        screen: "workspace",
+      });
     });
   },
 
@@ -526,8 +581,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
       await window.desktopApi.renameDoc({ projectId: workspace.projectId, docId, title });
-      await get().openProject(workspace.projectId);
-      await get().selectDoc(docId);
+      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
+      const timeline = await window.desktopApi.listTimeline({
+        projectId: workspace.projectId,
+        workspaceType: "doc",
+        workspaceItemId: docId,
+      });
+      const comments = await window.desktopApi.listDocComments(workspace.projectId, docId);
+      set({
+        activeWorkspace: {
+          projectId: workspace.projectId,
+          data: payload.workspace,
+          timeline,
+          docComments: { ...payload.docsComments, [docId]: comments },
+          selectedType: "doc",
+          selectedItemId: docId,
+        },
+        screen: "workspace",
+      });
     });
   },
 
