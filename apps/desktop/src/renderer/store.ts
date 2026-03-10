@@ -192,24 +192,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ versionWarning: payload });
       });
 
-      // Idle detection: 5 minutes → away, activity → online
-      let idleTimer: ReturnType<typeof setTimeout> | null = null;
-      let isAway = false;
-      const IDLE_MS = 5 * 60 * 1000;
-      const resetIdle = (): void => {
-        if (isAway) {
-          isAway = false;
-          window.desktopApi.updatePresence("online");
-        }
-        if (idleTimer !== null) clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
-          isAway = true;
-          window.desktopApi.updatePresence("away");
-        }, IDLE_MS);
-      };
-      document.addEventListener("mousemove", resetIdle, { passive: true });
-      document.addEventListener("keydown", resetIdle, { passive: true });
-      resetIdle();
+      // Idle detection is handled in the main process via powerMonitor.getSystemIdleTime()
 
       window.desktopApi.onWorkspaceChanged(async (projectId) => {
         const ws = get().activeWorkspace;

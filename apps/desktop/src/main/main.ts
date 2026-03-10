@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, nativeImage, Notification } from "electron";
+import { app, BrowserWindow, nativeImage, Notification, powerMonitor } from "electron";
 import { createLocalDb } from "./db.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { DesktopRepository } from "./repository.js";
@@ -166,6 +166,18 @@ const bootstrap = async (): Promise<void> => {
       updateBadge();
     });
   }
+
+  // System-wide idle detection: poll every 30s, away after 5 min idle
+  const IDLE_THRESHOLD_S = 5 * 60;
+  let currentPresence: "online" | "away" = "online";
+  setInterval(() => {
+    const idleSeconds = powerMonitor.getSystemIdleTime();
+    const newPresence = idleSeconds >= IDLE_THRESHOLD_S ? "away" : "online";
+    if (newPresence !== currentPresence) {
+      currentPresence = newPresence;
+      repository.updatePresence(newPresence);
+    }
+  }, 30_000);
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
