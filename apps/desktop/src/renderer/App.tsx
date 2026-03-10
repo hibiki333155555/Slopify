@@ -75,6 +75,31 @@ const formatTime = (timestamp: number): string =>
     hour12: false,
   });
 
+const formatDateLabel = (timestamp: number): string => {
+  const d = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+};
+
+const getDateKey = (timestamp: number): string => new Date(timestamp).toDateString();
+
+const formatShortDate = (timestamp: number): string => {
+  const d = new Date(timestamp);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return "";
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (d.getFullYear() === today.getFullYear()) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+};
+
 const formatRelativeTime = (timestamp: number): string => {
   const diff = Date.now() - timestamp;
   const seconds = Math.floor(diff / 1000);
@@ -886,29 +911,48 @@ const WorkspaceScreen = (): JSX.Element => {
 
                 {/* Messages */}
                 <ul ref={messagesRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5" onClick={() => { setMoreMenuFor(null); setEmojiPickerFor(null); }}>
-                  {workspace.timeline.map((entry) => {
+                  {workspace.timeline.map((entry, idx) => {
+                    const prevEntry = workspace.timeline[idx - 1];
+                    const showDateSeparator = idx === 0 || (prevEntry && getDateKey(entry.createdAt) !== getDateKey(prevEntry.createdAt));
+                    const dateSeparator = showDateSeparator ? (
+                      <li key={`date-${entry.id}`} className="flex items-center gap-3 py-2 px-3">
+                        <div className="flex-1 h-px bg-zinc-800" />
+                        <span className="text-[10px] font-medium text-zinc-500 tracking-wide">{formatDateLabel(entry.createdAt)}</span>
+                        <div className="flex-1 h-px bg-zinc-800" />
+                      </li>
+                    ) : null;
                     const isSystemEvent = entry.type !== "message.posted" && entry.type !== "decision.recorded";
                     if (isSystemEvent) {
                       return (
-                        <li key={entry.id} className="flex justify-center py-1">
-                          <span className="text-[11px] text-zinc-600 italic">
-                            {entry.timelineText}
-                            <span className="ml-2 text-[10px] font-mono text-zinc-700">{formatTime(entry.createdAt)}</span>
-                          </span>
-                        </li>
+                        <React.Fragment key={entry.id}>
+                          {dateSeparator}
+                          <li className="flex justify-center py-1">
+                            <span className="text-[11px] text-zinc-600 italic">
+                              {entry.timelineText}
+                              <span className="ml-2 text-[10px] font-mono text-zinc-700">{formatTime(entry.createdAt)}</span>
+                            </span>
+                          </li>
+                        </React.Fragment>
                       );
                     }
                     const isOwnMessage = entry.type === "message.posted" && entry.actorUserId === myUserId;
                     const isEditing = editingMessageId === entry.id;
                     return (
-                    <li key={entry.id} data-event-id={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
+                    <React.Fragment key={entry.id}>
+                    {dateSeparator}
+                    <li data-event-id={entry.id} className="group relative flex gap-3 px-3 py-1.5 rounded hover:bg-zinc-900/40 transition-colors">
                       <div className="mt-0.5">
                         <Avatar name={entry.actorDisplayName} url={entry.actorAvatarUrl} size={8} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-xs font-medium text-zinc-200">{entry.actorDisplayName}</span>
-                          <span className="text-[10px] font-mono text-zinc-500">{formatTime(entry.createdAt)}</span>
+                          <span className="text-[10px] font-mono text-zinc-500" title={formatDateTime(entry.createdAt)}>
+                            {formatTime(entry.createdAt)}
+                            {formatShortDate(entry.createdAt) && (
+                              <span className="ml-1 hidden group-hover:inline text-zinc-600">{formatShortDate(entry.createdAt)}</span>
+                            )}
+                          </span>
                           {entry.edited && <span className="text-[10px] text-zinc-600 italic">(edited)</span>}
                         </div>
                         {/* Reply preview */}
@@ -1113,6 +1157,7 @@ const WorkspaceScreen = (): JSX.Element => {
                         </div>
                       )}
                     </li>
+                    </React.Fragment>
                     );
                   })}
                 </ul>
