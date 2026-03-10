@@ -1,0 +1,29 @@
+name: Deploy sync-server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/sync-server/**'
+      - 'packages/shared/**'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cd /root/Slopify
+            git pull origin main
+            docker compose up -d --build
+            echo "Deployed $(git rev-parse --short HEAD) at $(date)"
