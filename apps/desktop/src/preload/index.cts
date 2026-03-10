@@ -77,6 +77,14 @@ const api: DesktopApi = {
     ipcRenderer.on("notification", handler);
     return () => ipcRenderer.off("notification", handler);
   },
+
+  onVersionOutdated: (listener: (payload: { latestVersion: string; currentVersion: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { latestVersion: string; currentVersion: string }): void => {
+      listener(payload);
+    };
+    ipcRenderer.on("version-outdated", handler);
+    return () => ipcRenderer.off("version-outdated", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("desktopApi", api);

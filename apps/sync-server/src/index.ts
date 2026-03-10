@@ -40,10 +40,15 @@ type ConnectedUser = {
   userId: string;
   status: PresenceStatus;
   projectIds: string[];
+  appVersion: string;
 };
 
 // Track all connected users: socketId → ConnectedUser
 const connectedUsers = new Map<string, ConnectedUser>();
+
+// Track the latest app version seen across all clients
+let latestAppVersion = "unknown";
+let latestAppVersionSeenAt = 0;
 
 const getProjectPresence = (projectId: string): { userId: string; status: PresenceStatus }[] => {
   const seen = new Map<string, PresenceStatus>();
@@ -124,6 +129,7 @@ const start = async (): Promise<void> => {
           displayName: z.string().min(1),
           avatarUrl: z.string().nullable().optional(),
           serverAccessPassword: z.string().min(1),
+          appVersion: z.string().optional(),
         })
         .parse(socket.handshake.auth);
 
@@ -140,6 +146,7 @@ const start = async (): Promise<void> => {
 
       socket.data.userId = auth.userId;
       socket.data.serverAccessPassword = auth.serverAccessPassword;
+      socket.data.appVersion = auth.appVersion ?? "unknown";
       next();
     } catch (error) {
       next(error instanceof Error ? error : new Error("Invalid auth"));
@@ -148,16 +155,37 @@ const start = async (): Promise<void> => {
 
   io.on("connection", async (socket) => {
     const userId = z.string().parse(socket.data.userId);
+    const appVersion = (socket.data.appVersion as string) ?? "unknown";
     const memberProjectIds = await repository.listProjectIdsForUser(userId);
-    console.log(`[socket.io] connected: userId=${userId} projects=[${memberProjectIds.join(",")}] socketId=${socket.id}`);
+    console.log(`[socket.io] connected: userId=${userId} version=${appVersion} projects=[${memberProjectIds.join(",")}] socketId=${socket.id}`);
     for (const projectId of memberProjectIds) {
       socket.join(`project:${projectId}`);
     }
 
     // Track presence
-    connectedUsers.set(socket.id, { userId, status: "online", projectIds: memberProjectIds });
+    connectedUsers.set(socket.id, { userId, status: "online", projectIds: memberProjectIds, appVersion });
     for (const projectId of memberProjectIds) {
       broadcastPresence(io, projectId);
+    }
+
+    // Version check: if this client is newer, notify all older clients
+    if (appVersion !== "unknown") {
+      if (latestAppVersion === "unknown" || Date.now() > latestAppVersionSeenAt) {
+        if (appVersion !== latestAppVersion) {
+          latestAppVersion = appVersion;
+          latestAppVersionSeenAt = Date.now();
+          // Notify all other connected sockets with older versions
+          for (const [socketId, user] of connectedUsers.entries()) {
+            if (socketId !== socket.id && user.appVersion !== appVersion && user.appVersion !== "unknown") {
+              io.to(socketId).emit("version:outdated", { latestVersion: appVersion });
+            }
+          }
+        }
+      }
+      // If this client is older than the latest, notify it immediately
+      if (appVersion !== latestAppVersion) {
+        socket.emit("version:outdated", { latestVersion: latestAppVersion });
+      }
     }
 
     socket.on("disconnect", (reason) => {

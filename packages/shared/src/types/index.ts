@@ -116,4 +116,5 @@ export interface DesktopApi {
   onWorkspaceChanged(listener: (projectId: string) => void): () => void;
   onNotification(listener: (payload: { title: string; body: string }) => void): () => void;
   onPresenceChanged(listener: (presence: UserPresence[]) => void): () => void;
+  onVersionOutdated(listener: (payload: { latestVersion: string; currentVersion: string }) => void): () => void;
 }

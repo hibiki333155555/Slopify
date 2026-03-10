@@ -1547,6 +1547,7 @@ export default function App(): JSX.Element {
   const error = useAppStore((state) => state.error);
   const dismissError = useAppStore((state) => state.dismissError);
   const inAppNotification = useAppStore((state) => state.inAppNotification);
+  const versionWarning = useAppStore((state) => state.versionWarning);
 
   useEffect(() => {
     void initialize();
@@ -1571,6 +1572,12 @@ export default function App(): JSX.Element {
         <div className="fixed top-4 right-4 z-[300] max-w-xs animate-in slide-in-from-top-2 fade-in bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-2xl px-4 py-3">
           <p className="text-xs font-semibold text-zinc-200">{inAppNotification.title}</p>
           <p className="text-xs text-zinc-400 mt-0.5 truncate">{inAppNotification.body}</p>
+        </div>
+      )}
+
+      {versionWarning !== null && (
+        <div className="fixed top-0 left-0 right-0 z-[250] bg-amber-500/90 text-zinc-950 text-xs font-medium text-center py-1.5 px-4">
+          New version available ({versionWarning.latestVersion}). Please <code className="font-mono font-bold">git pull && npm run dev</code> to update.
         </div>
       )}
 

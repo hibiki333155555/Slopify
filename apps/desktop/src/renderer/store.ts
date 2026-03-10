@@ -38,6 +38,7 @@ type AppState = {
   inviteCode: string | null;
   inAppNotification: { title: string; body: string; id: number } | null;
   presence: UserPresence[];
+  versionWarning: { latestVersion: string; currentVersion: string } | null;
 
   initialize: () => Promise<void>;
   completeSetup: (input: SetupCommand) => Promise<void>;
@@ -130,6 +131,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   inviteCode: null,
   inAppNotification: null,
   presence: [],
+  versionWarning: null,
   searchQuery: "",
   searchResults: [],
   searchOpen: false,
@@ -172,6 +174,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       window.desktopApi.onPresenceChanged((presence) => {
         set({ presence });
+      });
+
+      window.desktopApi.onVersionOutdated((payload) => {
+        set({ versionWarning: payload });
       });
 
       // Idle detection: 5 minutes → away, activity → online

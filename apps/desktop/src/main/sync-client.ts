@@ -6,12 +6,14 @@ export type SyncClientOptions = {
   onProjectHint: (projectId: string) => Promise<void>;
   onConnectionChanged: (connected: boolean) => void;
   onPresenceChanged: (projectId: string, presence: UserPresence[]) => void;
+  onVersionOutdated: (latestVersion: string) => void;
 };
 
 export type SyncIdentity = {
   userId: string;
   settings: Settings;
   serverAccessPassword: string;
+  appVersion: string;
 };
 
 const emitWithAck = <T>(
@@ -72,6 +74,7 @@ export class SyncClient {
         displayName: identity.settings.displayName,
         avatarUrl: identity.settings.avatarUrl,
         serverAccessPassword: identity.serverAccessPassword,
+        appVersion: identity.appVersion,
       },
       timeout: 5000,
     });
@@ -101,6 +104,10 @@ export class SyncClient {
 
     socket.on("presence:status", (payload: { projectId: string; presence: UserPresence[] }) => {
       this.options.onPresenceChanged(payload.projectId, payload.presence);
+    });
+
+    socket.on("version:outdated", (payload: { latestVersion: string }) => {
+      this.options.onVersionOutdated(payload.latestVersion);
     });
 
     this.socket = socket;

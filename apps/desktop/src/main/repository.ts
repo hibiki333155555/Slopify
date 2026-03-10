@@ -107,6 +107,7 @@ type SyncEmitterEvents = {
   "workspace-changed": string;
   notification: NotificationPayload;
   "presence-changed": UserPresence[];
+  "version-outdated": string;
 };
 
 class TypedEmitter {
@@ -153,6 +154,9 @@ export class DesktopRepository {
         void this.syncNow();
       }
     },
+    onVersionOutdated: (latestVersion) => {
+      this.emitter.emit("version-outdated", latestVersion);
+    },
   });
 
   private currentSyncStatus: SyncStatus = {
@@ -172,6 +176,7 @@ export class DesktopRepository {
   public constructor(
     private readonly db: LocalDb,
     private readonly sqlite: Database.Database,
+    private readonly appVersion: string = "unknown",
   ) {}
 
   public async init(): Promise<void> {
@@ -205,6 +210,10 @@ export class DesktopRepository {
 
   public onPresenceChanged(listener: (presence: UserPresence[]) => void): () => void {
     return this.emitter.on("presence-changed", listener);
+  }
+
+  public onVersionOutdated(listener: (latestVersion: string) => void): () => void {
+    return this.emitter.on("version-outdated", listener);
   }
 
   public async getPresence(projectId: string): Promise<UserPresence[]> {
@@ -314,6 +323,7 @@ export class DesktopRepository {
         serverUrl: input.serverUrl,
       },
       serverAccessPassword: input.serverAccessPassword,
+      appVersion: this.appVersion,
     });
     this.currentSyncStatus.lastError = null;
     this.currentSyncStatus.authed = false;
@@ -362,6 +372,7 @@ export class DesktopRepository {
         serverUrl: input.serverUrl,
       },
       serverAccessPassword: input.serverAccessPassword,
+      appVersion: this.appVersion,
     });
     this.currentSyncStatus.lastError = null;
     this.currentSyncStatus.authed = false;
@@ -1952,7 +1963,7 @@ export class DesktopRepository {
     return num;
   }
 
-  private getSyncIdentity(): { userId: string; settings: Settings; serverAccessPassword: string } | null {
+  private getSyncIdentity(): { userId: string; settings: Settings; serverAccessPassword: string; appVersion: string } | null {
     if (this.getMeta("setup_complete") !== "1") {
       return null;
     }
@@ -1981,10 +1992,11 @@ export class DesktopRepository {
         serverUrl,
       },
       serverAccessPassword,
+      appVersion: this.appVersion,
     };
   }
 
-  private requireSyncIdentity(): { userId: string; settings: Settings; serverAccessPassword: string } {
+  private requireSyncIdentity(): { userId: string; settings: Settings; serverAccessPassword: string; appVersion: string } {
     const identity = this.getSyncIdentity();
     if (identity === null) {
       throw new Error("Setup is incomplete");
