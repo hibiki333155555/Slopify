@@ -166,23 +166,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ inAppNotification: { title, body, projectId, chatChannelId, id: Date.now() } });
         setTimeout(() => {
           const current = get().inAppNotification;
-          if (current !== null && current.id <= Date.now() - 3000) {
+          if (current !== null && current.id <= Date.now() - 5000) {
             set({ inAppNotification: null });
           }
-        }, 4000);
+        }, 6000);
       });
 
-      // Navigate to chat from OS notification click
+      // Navigate to chat from OS notification click or in-app toast click
       window.desktopApi.onNavigateToChat(async ({ projectId, chatChannelId }) => {
-        const state = get();
-        // Open the project if not already open
-        if (state.activeWorkspace?.projectId !== projectId) {
-          await state.openProject(projectId);
-        }
-        // Select the channel if provided
-        if (chatChannelId) {
-          await get().selectChatChannel(chatChannelId);
-        }
+        try {
+          // Always load the project first (handles both fresh open and already-open cases)
+          await get().openProject(projectId);
+          // Then select the channel
+          if (chatChannelId) {
+            await get().selectChatChannel(chatChannelId);
+          }
+        } catch { /* navigation failed silently */ }
       });
 
       window.desktopApi.onPresenceChanged((presence) => {

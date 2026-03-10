@@ -1572,13 +1572,16 @@ export default function App(): JSX.Element {
 
       {inAppNotification !== null && (
         <div
-          className="fixed top-4 right-4 z-[300] max-w-xs animate-in slide-in-from-top-2 fade-in bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-2xl px-4 py-3 cursor-pointer hover:bg-zinc-750 transition-colors"
-          onClick={async () => {
-            if (inAppNotification.projectId) {
-              await openProject(inAppNotification.projectId);
-              if (inAppNotification.chatChannelId) {
-                await selectChatChannel(inAppNotification.chatChannelId);
-              }
+          className="fixed top-4 right-4 z-[300] max-w-xs animate-in slide-in-from-top-2 fade-in bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-2xl px-4 py-3 cursor-pointer hover:bg-zinc-700/80 transition-colors"
+          onClick={() => {
+            const { projectId, chatChannelId } = inAppNotification;
+            useAppStore.setState({ inAppNotification: null });
+            if (projectId) {
+              void openProject(projectId).then(() => {
+                if (chatChannelId) {
+                  void selectChatChannel(chatChannelId);
+                }
+              });
             }
           }}
         >

@@ -72,6 +72,10 @@ const bootstrap = async (): Promise<void> => {
     app.setPath("userData", customUserData);
   }
 
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.slopify.desktop");
+  }
+
   await app.whenReady();
 
   const userDataDir = app.getPath("userData");
