@@ -1548,6 +1548,8 @@ export default function App(): JSX.Element {
   const dismissError = useAppStore((state) => state.dismissError);
   const inAppNotification = useAppStore((state) => state.inAppNotification);
   const versionWarning = useAppStore((state) => state.versionWarning);
+  const openProject = useAppStore((state) => state.openProject);
+  const selectChatChannel = useAppStore((state) => state.selectChatChannel);
 
   useEffect(() => {
     void initialize();
@@ -1569,7 +1571,17 @@ export default function App(): JSX.Element {
       )}
 
       {inAppNotification !== null && (
-        <div className="fixed top-4 right-4 z-[300] max-w-xs animate-in slide-in-from-top-2 fade-in bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-2xl px-4 py-3">
+        <div
+          className="fixed top-4 right-4 z-[300] max-w-xs animate-in slide-in-from-top-2 fade-in bg-zinc-800 border border-zinc-700/60 rounded-lg shadow-2xl px-4 py-3 cursor-pointer hover:bg-zinc-750 transition-colors"
+          onClick={async () => {
+            if (inAppNotification.projectId) {
+              await openProject(inAppNotification.projectId);
+              if (inAppNotification.chatChannelId) {
+                await selectChatChannel(inAppNotification.chatChannelId);
+              }
+            }
+          }}
+        >
           <p className="text-xs font-semibold text-zinc-200">{inAppNotification.title}</p>
           <p className="text-xs text-zinc-400 mt-0.5 truncate">{inAppNotification.body}</p>
         </div>

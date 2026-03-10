@@ -100,6 +100,8 @@ type InviteResponse = { inviteCode: string };
 type NotificationPayload = {
   title: string;
   body: string;
+  projectId: string;
+  chatChannelId: string | null;
 };
 
 type SyncEmitterEvents = {
@@ -1503,6 +1505,8 @@ export class DesktopRepository {
           this.emitter.emit("notification", {
             title: senderName,
             body: body || "[image]",
+            projectId: event.projectId,
+            chatChannelId: event.chatChannelId,
           });
         }
       }

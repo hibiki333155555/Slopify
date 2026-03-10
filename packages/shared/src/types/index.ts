@@ -114,7 +114,8 @@ export interface DesktopApi {
 
   onSyncStatus(listener: (status: SyncStatus) => void): () => void;
   onWorkspaceChanged(listener: (projectId: string) => void): () => void;
-  onNotification(listener: (payload: { title: string; body: string }) => void): () => void;
+  onNotification(listener: (payload: { title: string; body: string; projectId?: string; chatChannelId?: string | null }) => void): () => void;
+  onNavigateToChat(listener: (payload: { projectId: string; chatChannelId: string | null }) => void): () => void;
   onPresenceChanged(listener: (presence: UserPresence[]) => void): () => void;
   onVersionOutdated(listener: (payload: { latestVersion: string; currentVersion: string }) => void): () => void;
 }

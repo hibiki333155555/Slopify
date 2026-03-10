@@ -49,10 +49,15 @@ const api: DesktopApi = {
     ipcRenderer.on("workspace-changed", handler);
     return () => ipcRenderer.off("workspace-changed", handler);
   },
-  onNotification: (listener: (payload: { title: string; body: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: { title: string; body: string }): void => listener(payload);
+  onNotification: (listener: (payload: { title: string; body: string; projectId?: string; chatChannelId?: string | null }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { title: string; body: string; projectId?: string; chatChannelId?: string | null }): void => listener(payload);
     ipcRenderer.on("notification", handler);
     return () => ipcRenderer.off("notification", handler);
+  },
+  onNavigateToChat: (listener: (payload: { projectId: string; chatChannelId: string | null }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { projectId: string; chatChannelId: string | null }): void => listener(payload);
+    ipcRenderer.on("navigate-to-chat", handler);
+    return () => ipcRenderer.off("navigate-to-chat", handler);
   },
   onPresenceChanged: (listener: (presence: UserPresence[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, presence: UserPresence[]): void => listener(presence);

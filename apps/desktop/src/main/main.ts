@@ -131,12 +131,23 @@ const bootstrap = async (): Promise<void> => {
     }
   });
 
-  repository.onNotification(({ title, body }) => {
-    // OS notification (Windows/Mac) — fails silently on WSL2/Linux without notification daemon
-    try { new Notification({ title, body }).show(); } catch { /* ignore */ }
+  repository.onNotification(({ title, body, projectId, chatChannelId }) => {
+    // OS notification — click focuses window and navigates to the conversation
+    try {
+      const notif = new Notification({ title: `Slopify — ${title}`, body });
+      notif.on("click", () => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win) {
+          win.show();
+          win.focus();
+          win.webContents.send("navigate-to-chat", { projectId, chatChannelId });
+        }
+      });
+      notif.show();
+    } catch { /* ignore — WSL2/Linux without notification daemon */ }
     // Renderer notification (in-app toast + sound — works everywhere)
     for (const w of BrowserWindow.getAllWindows()) {
-      w.webContents.send("notification", { title, body });
+      w.webContents.send("notification", { title, body, projectId, chatChannelId });
     }
     unreadCount++;
     updateBadge();

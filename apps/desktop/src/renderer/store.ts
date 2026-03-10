@@ -36,7 +36,7 @@ type AppState = {
   loading: boolean;
   error: string | null;
   inviteCode: string | null;
-  inAppNotification: { title: string; body: string; id: number } | null;
+  inAppNotification: { title: string; body: string; projectId: string | undefined; chatChannelId: string | null | undefined; id: number } | null;
   presence: UserPresence[];
   versionWarning: { latestVersion: string; currentVersion: string } | null;
 
@@ -148,7 +148,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ syncStatus: status });
       });
 
-      window.desktopApi.onNotification(({ title, body }) => {
+      window.desktopApi.onNotification(({ title, body, projectId, chatChannelId }) => {
         // Play notification sound via Web Audio API
         try {
           const ctx = new AudioContext();
@@ -163,13 +163,26 @@ export const useAppStore = create<AppState>((set, get) => ({
           osc.stop(ctx.currentTime + 0.3);
         } catch { /* audio not available */ }
         // Show in-app toast
-        set({ inAppNotification: { title, body, id: Date.now() } });
+        set({ inAppNotification: { title, body, projectId, chatChannelId, id: Date.now() } });
         setTimeout(() => {
           const current = get().inAppNotification;
           if (current !== null && current.id <= Date.now() - 3000) {
             set({ inAppNotification: null });
           }
         }, 4000);
+      });
+
+      // Navigate to chat from OS notification click
+      window.desktopApi.onNavigateToChat(async ({ projectId, chatChannelId }) => {
+        const state = get();
+        // Open the project if not already open
+        if (state.activeWorkspace?.projectId !== projectId) {
+          await state.openProject(projectId);
+        }
+        // Select the channel if provided
+        if (chatChannelId) {
+          await get().selectChatChannel(chatChannelId);
+        }
       });
 
       window.desktopApi.onPresenceChanged((presence) => {
