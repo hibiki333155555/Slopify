@@ -15,9 +15,9 @@ import type {
   UserPresence,
   WorkspaceState,
 } from "@slopify/shared";
-import { repository } from "../core/repository.js";
-import { readClipboardImage, showNotification, getSystemIdleTime } from "../core/native.js";
-import { initDb } from "../core/db.js";
+import { repository } from "./core/repository.js";
+import { readClipboardImage, showNotification, getSystemIdleTime } from "./core/native.js";
+import { initDb } from "./core/db.js";
 
 type Screen = "loading" | "setup" | "projects" | "workspace" | "settings";
 

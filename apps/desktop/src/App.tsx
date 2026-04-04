@@ -1,6 +1,8 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import { getSelectedDoc, useAppStore } from "./store.js";
+import { repository } from "./core/repository.js";
+import { readClipboardImage } from "./core/native.js";
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -220,7 +222,7 @@ const ProjectsScreen = (): JSX.Element => {
     const fetchPresence = async () => {
       const results: Record<string, boolean> = {};
       for (const p of projects) {
-        const presence = await window.desktopApi.getPresence(p.projectId).catch(() => []);
+        const presence = await repository.getPresence(p.projectId).catch(() => []);
         results[p.projectId] = presence.some((u) => u.userId !== myUserId && u.status === "online");
       }
       if (!cancelled) setProjectPresence(results);
@@ -1224,7 +1226,7 @@ const WorkspaceScreen = (): JSX.Element => {
                         }
                         if (e.ctrlKey && e.key === "v") {
                           e.preventDefault();
-                          void window.desktopApi.readClipboardImage().then((dataUrl) => {
+                          void readClipboardImage().then((dataUrl) => {
                             if (dataUrl !== null) {
                               setPendingImage(dataUrl);
                             } else {
