@@ -18,10 +18,19 @@
     "dist": "npm run build:all && electron-builder",
     "dist:mac": "npm run build:all && electron-builder --mac",
     "dist:win": "npm run build:all && electron-builder --win",
-    "dist:linux": "npm run build:all && electron-builder --linux"
+    "dist:linux": "npm run build:all && electron-builder --linux",
+    "dev:vite": "vite",
+    "dev:tauri": "tauri dev",
+    "build:vite": "vite build"
   },
   "dependencies": {
     "@slopify/shared": "file:../../packages/shared",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
+    "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-os": "^2.3.2",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "@tauri-apps/plugin-sql": "^2.3.2",
     "better-sqlite3": "^11.5.0",
     "drizzle-orm": "^0.34.1",
     "marked": "^17.0.4",
@@ -31,6 +40,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@tauri-apps/cli": "^2.10.1",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.7.4",
     "@types/react": "^18.3.11",
