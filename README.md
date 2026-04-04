@@ -9,6 +9,10 @@ Local-first, event-sourced collaborative workspace. Tauri v2 desktop client with
 - Node.js 20+
 - Rust toolchain (install via [rustup](https://rustup.rs/))
 - Docker (for PostgreSQL and sync-server)
+- **Linux (Ubuntu/Debian)** — system libraries required by Tauri:
+  ```bash
+  sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxss-dev
+  ```
 
 ## Setup
 
