@@ -15,6 +15,9 @@ import type {
   UserPresence,
   WorkspaceState,
 } from "@slopify/shared";
+import { repository } from "../core/repository.js";
+import { readClipboardImage, showNotification, getSystemIdleTime } from "../core/native.js";
+import { initDb } from "../core/db.js";
 
 type Screen = "loading" | "setup" | "projects" | "workspace" | "settings";
 
@@ -139,16 +142,18 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   initialize: async () => {
     await withBusy(set, async () => {
-      const bootstrap = await window.desktopApi.bootstrap();
-      const syncStatus = await window.desktopApi.getSyncStatus();
+      await initDb();
+
+      const bootstrap = await repository.bootstrap();
+      const syncStatus = await repository.getSyncStatus();
 
       set({ bootstrap, syncStatus });
 
-      window.desktopApi.onSyncStatus((status) => {
+      repository.onSyncStatus((status) => {
         set({ syncStatus: status });
       });
 
-      window.desktopApi.onNotification(({ title, body, projectId, chatChannelId }) => {
+      repository.onNotification(async ({ title, body, projectId, chatChannelId }) => {
         // Play notification sound via Web Audio API
         try {
           const ctx = new AudioContext();
@@ -170,43 +175,31 @@ export const useAppStore = create<AppState>((set, get) => ({
             set({ inAppNotification: null });
           }
         }, 6000);
+        // OS notification
+        await showNotification(title, body);
       });
 
-      // Navigate to chat from OS notification click or in-app toast click
-      window.desktopApi.onNavigateToChat(async ({ projectId, chatChannelId }) => {
-        try {
-          // Always load the project first (handles both fresh open and already-open cases)
-          await get().openProject(projectId);
-          // Then select the channel
-          if (chatChannelId) {
-            await get().selectChatChannel(chatChannelId);
-          }
-        } catch { /* navigation failed silently */ }
-      });
-
-      window.desktopApi.onPresenceChanged((presence) => {
+      repository.onPresenceChanged((presence) => {
         set({ presence });
       });
 
-      window.desktopApi.onVersionOutdated((payload) => {
-        set({ versionWarning: payload });
+      repository.onVersionOutdated((latestVersion) => {
+        set({ versionWarning: { latestVersion, currentVersion: __APP_VERSION__ } });
       });
 
-      // Idle detection is handled in the main process via powerMonitor.getSystemIdleTime()
-
-      window.desktopApi.onWorkspaceChanged(async (projectId) => {
+      repository.onWorkspaceChanged(async (projectId) => {
         const ws = get().activeWorkspace;
         if (ws !== null && ws.projectId === projectId) {
           const selType = ws.selectedType;
           const selId = ws.selectedItemId;
           const [timeline, channels, docs] = await Promise.all([
-            window.desktopApi.listTimeline({
+            repository.listTimeline({
               projectId,
               workspaceType: selType,
               workspaceItemId: selId,
             }),
-            window.desktopApi.listChannels(projectId),
-            window.desktopApi.listDocs(projectId),
+            repository.listChannels(projectId),
+            repository.listDocs(projectId),
           ]);
           set((state) => {
             const aw = state.activeWorkspace;
@@ -224,65 +217,79 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().refreshProjects();
       });
 
+      await repository.init();
+
+      // Idle detection polling
+      const IDLE_THRESHOLD_S = 5 * 60;
+      let currentPresence: "online" | "away" = "online";
+      setInterval(async () => {
+        const idleSeconds = await getSystemIdleTime();
+        const newPresence = idleSeconds >= IDLE_THRESHOLD_S ? "away" : "online";
+        if (newPresence !== currentPresence) {
+          currentPresence = newPresence;
+          repository.updatePresence(newPresence);
+        }
+      }, 30_000);
+
       if (!bootstrap.hasCompletedSetup) {
         set({ screen: "setup" });
         return;
       }
 
-      const projects = await window.desktopApi.listProjects();
+      const projects = await repository.listProjects();
       set({ projects, screen: "projects" });
     });
   },
 
   completeSetup: async (input) => {
     await withBusy(set, async () => {
-      const bootstrap = await window.desktopApi.completeSetup(input);
-      const projects = await window.desktopApi.listProjects();
+      const bootstrap = await repository.completeSetup(input);
+      const projects = await repository.listProjects();
       set({ bootstrap, projects, screen: "projects" });
     });
   },
 
   updateSettings: async (input) => {
     await withBusy(set, async () => {
-      await window.desktopApi.updateSettings(input);
-      const bootstrap = await window.desktopApi.bootstrap();
+      await repository.updateSettings(input);
+      const bootstrap = await repository.bootstrap();
       set({ bootstrap, screen: "projects" });
     });
   },
 
   clearConnection: async () => {
     await withBusy(set, async () => {
-      await window.desktopApi.clearConnection();
-      const bootstrap = await window.desktopApi.bootstrap();
+      await repository.clearConnection();
+      const bootstrap = await repository.bootstrap();
       set({ bootstrap, activeWorkspace: null, projects: [], screen: "setup" });
     });
   },
 
   refreshProjects: async () => {
-    const projects = await window.desktopApi.listProjects();
+    const projects = await repository.listProjects();
     set({ projects });
   },
 
   createProject: async (name) => {
     await withBusy(set, async () => {
-      await window.desktopApi.createProject({ name });
-      const projects = await window.desktopApi.listProjects();
+      await repository.createProject({ name });
+      const projects = await repository.listProjects();
       set({ projects, screen: "projects" });
     });
   },
 
   joinProject: async (inviteCode) => {
     await withBusy(set, async () => {
-      await window.desktopApi.joinProject({ inviteCode });
-      const projects = await window.desktopApi.listProjects();
+      await repository.joinProject({ inviteCode });
+      const projects = await repository.listProjects();
       set({ projects, screen: "projects" });
     });
   },
 
   openProject: async (projectId) => {
     await withBusy(set, async () => {
-      const payload = await window.desktopApi.openWorkspace(projectId);
-      const presence = await window.desktopApi.getPresence(projectId).catch(() => []);
+      const payload = await repository.openWorkspace(projectId);
+      const presence = await repository.getPresence(projectId).catch(() => []);
       set({
         activeWorkspace: toWorkspaceState(projectId, payload),
         screen: "workspace",
@@ -298,15 +305,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      const { inviteCode } = await window.desktopApi.createInvite(workspace.projectId);
+      const { inviteCode } = await repository.createInvite(workspace.projectId);
       set({ inviteCode });
     });
   },
 
   leaveProject: async (projectId) => {
     await withBusy(set, async () => {
-      await window.desktopApi.leaveProject(projectId);
-      const projects = await window.desktopApi.listProjects();
+      await repository.leaveProject(projectId);
+      const projects = await repository.listProjects();
       set({ projects, activeWorkspace: null, screen: "projects" });
     });
   },
@@ -317,7 +324,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      const timeline = await window.desktopApi.listTimeline({
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: "chat",
         workspaceItemId: chatChannelId,
@@ -340,12 +347,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
       const [timeline, comments] = await Promise.all([
-        window.desktopApi.listTimeline({
+        repository.listTimeline({
           projectId: workspace.projectId,
           workspaceType: "doc",
           workspaceItemId: docId,
         }),
-        window.desktopApi.listDocComments(workspace.projectId, docId),
+        repository.listDocComments(workspace.projectId, docId),
       ]);
 
       set({
@@ -369,12 +376,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      const channel = await window.desktopApi.createChannel({
+      const channel = await repository.createChannel({
         projectId: workspace.projectId,
         name,
       });
-      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
-      const timeline = await window.desktopApi.listTimeline({
+      const payload = await repository.openWorkspace(workspace.projectId);
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: "chat",
         workspaceItemId: channel.chatChannelId,
@@ -399,7 +406,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      await window.desktopApi.deleteChannel({
+      await repository.deleteChannel({
         projectId: workspace.projectId,
         chatChannelId,
       });
@@ -413,7 +420,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null || workspace.selectedType !== "chat") {
         return;
       }
-      await window.desktopApi.postMessage({
+      await repository.postMessage({
         projectId: workspace.projectId,
         chatChannelId: workspace.selectedItemId,
         body,
@@ -428,7 +435,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (workspace === null || workspace.selectedType !== "chat") {
       return;
     }
-    await window.desktopApi.editMessage({
+    await repository.editMessage({
       projectId: workspace.projectId,
       chatChannelId: workspace.selectedItemId,
       messageEventId,
@@ -442,7 +449,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (workspace === null || workspace.selectedType !== "chat") {
       return;
     }
-    await window.desktopApi.deleteMessage({
+    await repository.deleteMessage({
       projectId: workspace.projectId,
       chatChannelId: workspace.selectedItemId,
       messageEventId,
@@ -456,7 +463,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null || workspace.selectedType !== "chat") {
         return;
       }
-      await window.desktopApi.addReaction({
+      await repository.addReaction({
         projectId: workspace.projectId,
         chatChannelId: workspace.selectedItemId,
         messageEventId,
@@ -471,7 +478,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null || workspace.selectedType !== "chat") {
         return;
       }
-      await window.desktopApi.removeReaction({
+      await repository.removeReaction({
         projectId: workspace.projectId,
         chatChannelId: workspace.selectedItemId,
         messageEventId,
@@ -486,7 +493,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null || workspace.selectedType !== "chat") {
         return;
       }
-      await window.desktopApi.recordDecision({
+      await repository.recordDecision({
         projectId: workspace.projectId,
         chatChannelId: workspace.selectedItemId,
         title: text,
@@ -506,9 +513,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         chatChannelId: workspace.selectedItemId,
         title,
       };
-      await window.desktopApi.createTask(command);
-      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
-      const timeline = await window.desktopApi.listTimeline({
+      await repository.createTask(command);
+      const payload = await repository.openWorkspace(workspace.projectId);
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: "chat",
         workspaceItemId: workspace.selectedItemId,
@@ -533,13 +540,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      await window.desktopApi.setTaskStatus({
+      await repository.setTaskStatus({
         projectId: workspace.projectId,
         taskId,
         completed,
       });
-      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
-      const timeline = await window.desktopApi.listTimeline({
+      const payload = await repository.openWorkspace(workspace.projectId);
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: workspace.selectedType,
         workspaceItemId: workspace.selectedItemId,
@@ -564,18 +571,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      const doc = await window.desktopApi.createDoc({
+      const doc = await repository.createDoc({
         projectId: workspace.projectId,
         title: input.title,
         markdown: input.markdown,
       });
-      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
-      const timeline = await window.desktopApi.listTimeline({
+      const payload = await repository.openWorkspace(workspace.projectId);
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: "doc",
         workspaceItemId: doc.docId,
       });
-      const comments = await window.desktopApi.listDocComments(workspace.projectId, doc.docId);
+      const comments = await repository.listDocComments(workspace.projectId, doc.docId);
       set({
         activeWorkspace: {
           projectId: workspace.projectId,
@@ -596,14 +603,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      await window.desktopApi.renameDoc({ projectId: workspace.projectId, docId, title });
-      const payload = await window.desktopApi.openWorkspace(workspace.projectId);
-      const timeline = await window.desktopApi.listTimeline({
+      await repository.renameDoc({ projectId: workspace.projectId, docId, title });
+      const payload = await repository.openWorkspace(workspace.projectId);
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: "doc",
         workspaceItemId: docId,
       });
-      const comments = await window.desktopApi.listDocComments(workspace.projectId, docId);
+      const comments = await repository.listDocComments(workspace.projectId, docId);
       set({
         activeWorkspace: {
           projectId: workspace.projectId,
@@ -624,9 +631,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      await window.desktopApi.updateDoc({ projectId: workspace.projectId, docId, markdown });
-      const refreshedDocs = await window.desktopApi.listDocs(workspace.projectId);
-      const timeline = await window.desktopApi.listTimeline({
+      await repository.updateDoc({ projectId: workspace.projectId, docId, markdown });
+      const refreshedDocs = await repository.listDocs(workspace.projectId);
+      const timeline = await repository.listTimeline({
         projectId: workspace.projectId,
         workspaceType: "doc",
         workspaceItemId: docId,
@@ -650,7 +657,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (workspace === null) {
         return;
       }
-      await window.desktopApi.addDocComment({
+      await repository.addDocComment({
         projectId: workspace.projectId,
         docId,
         body,
@@ -672,7 +679,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ searchResults: [] });
       return;
     }
-    const results = await window.desktopApi.searchMessages(workspace.projectId, query);
+    const results = await repository.searchMessages(workspace.projectId, query);
     // Only update if query hasn't changed while awaiting
     if (get().searchQuery === query) {
       set({ searchResults: results });
