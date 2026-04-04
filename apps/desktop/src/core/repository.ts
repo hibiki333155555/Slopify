@@ -1817,13 +1817,11 @@ export class DesktopRepository {
   }
 
   private async pendingCount(): Promise<number> {
-    return (
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(events)
-        .where(eq(events.syncStatus, "pending"))
-        .get())?.count ?? 0
+    const rows = await rawQuery<{ cnt: number }>(
+      "SELECT count(*) AS cnt FROM events WHERE sync_status = ?",
+      ["pending"],
     );
+    return rows[0]?.cnt ?? 0;
   }
 
   private async requireProject(projectId: string): Promise<ProjectSummary> {
