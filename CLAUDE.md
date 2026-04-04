@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Slopify is a local-first, event-sourced collaborative workspace. Electron desktop client with SQLite local storage syncs via Socket.IO to a Fastify server backed by PostgreSQL. Works fully offline; events sync when reconnected.
+Slopify is a local-first, event-sourced collaborative workspace. Tauri v2 desktop client with SQLite local storage syncs via Socket.IO to a Fastify server backed by PostgreSQL. Works fully offline; events sync when reconnected. Rust toolchain is required for desktop development.
 
 ## Commands
 
@@ -19,7 +19,7 @@ npm run build
 npm run dev
 
 # Dev mode (individual)
-npm run dev:desktop       # Runs renderer (Vite), main (tsc --watch), and Electron concurrently
+npm run dev:desktop       # Runs Tauri dev mode (Vite + Rust backend)
 npm run dev:sync-server   # Runs server via tsx
 docker compose up -d postgres
 
@@ -58,10 +58,10 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 - Pull cursor uses `server_seq` (server-side auto-increment), NOT client `created_at` timestamps — this prevents missed events when clients push stale offline data
 - DB schema auto-migrates on server startup (`db.ts` bootstrapSql adds `server_seq` column to existing tables)
 
-**Desktop app (Electron + React):**
-- Main process: `apps/desktop/src/main/` — `repository.ts` is the data access layer over SQLite/Drizzle, `ipc.ts` registers all IPC handlers, `sync-client.ts` manages Socket.IO connection
-- Renderer: `apps/desktop/src/renderer/` — React with Zustand store (`store.ts`), single `App.tsx` routes between screens (Setup, Projects, Workspace, Settings)
-- Preload exposes `window.desktopApi` typed via `packages/shared/src/types/index.ts`
+**Desktop app (Tauri v2 + React):**
+- Core (`apps/desktop/src/core/`): `repository.ts` is the data access layer over SQLite/Drizzle (sqlite-proxy via tauri-plugin-sql), `sync-client.ts` manages Socket.IO connection
+- WebView (`apps/desktop/src/`): React with Zustand store (`store.ts`), single `App.tsx` routes between screens (Setup, Projects, Workspace, Settings). Business logic runs in the WebView — store.ts calls repository methods directly (no IPC layer).
+- `apps/desktop/src-tauri/`: Rust backend code (Tauri commands, plugins, capabilities)
 - Chat messages render markdown via `marked` library with `.prose-chat` styles
 - Chat composer: Enter to send, Shift+Enter for newline, Ctrl+V to paste images
 - Decisions panel is resizable (drag divider) and collapsible (toggle in chat header)
@@ -82,7 +82,7 @@ E2E tests live in `e2e/` and use `@playwright/test` with Electron. They run seri
 ## Key Conventions
 
 - All code is TypeScript (ES modules). Zod for validation, ULID for IDs.
-- SQLite tables defined with Drizzle ORM in `apps/desktop/src/main/schema.ts`
+- SQLite tables defined with Drizzle ORM in `apps/desktop/src/core/schema.ts`
 - The canonical requirements doc is `docs/docsv2.md`
 - Workspace UI is a 2-pane layout: left sidebar (channels/docs/members), right content (chat with decisions panel, or doc editor with comments)
 - Event types are defined in the shared schema and must stay consistent between client and server

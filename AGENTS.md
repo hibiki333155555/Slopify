@@ -6,7 +6,7 @@ Instructions for AI coding agents working on this repository.
 
 ## Product Overview
 
-Slopify is a **local-first, event-sourced collaborative workspace**. An Electron desktop client stores data in SQLite and syncs via Socket.IO to a Fastify server backed by PostgreSQL. The app works fully offline; events reconcile when reconnected.
+Slopify is a **local-first, event-sourced collaborative workspace**. A Tauri v2 desktop client stores data in SQLite and syncs via Socket.IO to a Fastify server backed by PostgreSQL. The app works fully offline; events reconcile when reconnected.
 
 **Core features:** Projects, chat channels (with messages, decisions, tasks, reactions, replies), Markdown docs (with comments), invite-based collaboration, real-time presence, and full-text message search.
 
@@ -17,22 +17,24 @@ Slopify is a **local-first, event-sourced collaborative workspace**. An Electron
 ```
 Slopify/
   apps/
-    desktop/           # Electron + React desktop app
+    desktop/           # Tauri v2 + React desktop app
       src/
-        main/          # Electron main process (Node.js)
-          main.ts      # App entry: creates window, initializes DB/repo, idle detection
-          db.ts        # SQLite bootstrap (better-sqlite3 + Drizzle ORM)
+        core/          # Business logic (runs in WebView)
+          db.ts        # SQLite bootstrap (tauri-plugin-sql + Drizzle ORM sqlite-proxy)
           schema.ts    # Drizzle table definitions (11 tables)
           repository.ts # Data access layer, sync orchestration, all business logic
-          ipc.ts       # Registers all IPC handlers bridging main↔renderer
           sync-client.ts # Socket.IO client: pull/push/presence/version check
-        renderer/      # React UI (single-page, no router)
-          App.tsx      # All screens + components in one file (~1400 lines)
-          store.ts     # Zustand store: all state + actions
-          styles.css   # Tailwind v4 + prose-chat markdown styles
-          main.tsx     # React entry
-          global.d.ts  # window.desktopApi type augmentation
-        preload/       # Electron preload (contextBridge → desktopApi)
+          native.ts    # OS feature wrappers (notifications, idle detection, etc.)
+        App.tsx        # All screens + components in one file (~1400 lines)
+        store.ts       # Zustand store: all state + actions (calls repository directly)
+        styles.css     # Tailwind v4 + prose-chat markdown styles
+        main.tsx       # React entry
+      src-tauri/       # Rust backend (Tauri commands, plugins, capabilities)
+        src/
+          main.rs      # Tauri app entry
+        Cargo.toml     # Rust dependencies
+        tauri.conf.json # Tauri configuration
+        capabilities/  # Permission capabilities
     sync-server/       # Fastify + Socket.IO sync relay
       src/
         index.ts       # Server setup, Socket.IO handlers, Fastify routes
@@ -64,9 +66,9 @@ Slopify/
 
 | Layer | Technology |
 |---|---|
-| Desktop framework | Electron 33 |
+| Desktop framework | Tauri v2 |
 | Renderer | React 18, Zustand 4, Tailwind CSS v4, Vite 5 |
-| Local DB | SQLite via better-sqlite3 + Drizzle ORM |
+| Local DB | SQLite via tauri-plugin-sql + Drizzle ORM (sqlite-proxy) |
 | Markdown | `marked` library |
 | Sync transport | Socket.IO (client + server) |
 | Server framework | Fastify 5 |
@@ -74,7 +76,7 @@ Slopify/
 | Validation | Zod (all boundaries) |
 | IDs | ULID |
 | Language | TypeScript (ESM throughout) |
-| Build | npm workspaces, tsc, Vite, electron-builder |
+| Build | npm workspaces, tsc, Vite, Tauri (Cargo) |
 | Testing | Vitest (unit), Playwright (E2E) |
 | CI/CD | GitHub Actions |
 
@@ -86,7 +88,7 @@ Slopify/
 npm install                    # Install all workspaces
 npm run build                  # Build shared → sync-server → desktop
 npm run dev                    # Full dev (postgres + server + desktop)
-npm run dev:desktop            # Desktop only (renderer + main + electron)
+npm run dev:desktop            # Desktop only (Tauri dev mode: Vite + Rust backend)
 npm run dev:sync-server        # Server only (tsx)
 docker compose up -d postgres  # PostgreSQL only
 
@@ -114,8 +116,8 @@ npm run lint                   # ESLint
 
 All mutations produce events (not direct DB writes). The event flow:
 
-1. **User action** → Zustand store → `window.desktopApi.xxx()` (IPC)
-2. **Main process** → `repository.ts` creates event(s), appends to local SQLite with `sync_status = 'pending'`
+1. **User action** → Zustand store → `repository.xxx()` (direct call in WebView)
+2. **Repository** → `repository.ts` creates event(s), appends to local SQLite with `sync_status = 'pending'`
 3. **Local projection** → `applyLocalEvent()` updates denormalized tables (projects, channels, tasks, etc.)
 4. **Sync push** → `syncNow()` pushes pending events to server via Socket.IO `sync:push`
 5. **Server** → validates, inserts with auto-increment `server_seq`, applies projection, broadcasts `sync:event` + `sync:events` to project room
@@ -170,7 +172,7 @@ doc.created, doc.renamed, doc.updated, doc.comment.added
 
 ## Key Files & What They Do
 
-### `apps/desktop/src/main/repository.ts` (largest file, ~950 lines)
+### `apps/desktop/src/core/repository.ts` (largest file, ~950 lines)
 The heart of the desktop app. Contains:
 - `DesktopRepository` class with all business logic
 - `bootstrap()`, `completeSetup()`, `updateSettings()` — identity management
@@ -184,7 +186,7 @@ The heart of the desktop app. Contains:
 - `applyRemoteEvents()`, `applyLocalEvent()` — event projection to denormalized tables
 - `appendLocalEvents()` — writes events to SQLite with `sync_status = 'pending'`
 
-### `apps/desktop/src/renderer/App.tsx` (~1400 lines, single file)
+### `apps/desktop/src/App.tsx` (~1400 lines, single file)
 All UI components in one file:
 - `SetupScreen`, `ProjectsScreen`, `WorkspaceScreen`, `SettingsScreen`
 - `SearchPanel` — Ctrl+K search overlay
@@ -192,11 +194,8 @@ All UI components in one file:
 - Doc editor with markdown preview and comments
 - All helper components: `Avatar`, `AvatarPicker`, formatting utilities
 
-### `apps/desktop/src/renderer/store.ts`
-Zustand store with all app state and actions. Every user action flows through here.
-
-### `packages/shared/src/types/index.ts`
-The `DesktopApi` interface — the contract between main and renderer processes. All IPC methods are defined here.
+### `apps/desktop/src/store.ts`
+Zustand store with all app state and actions. Every user action flows through here. Calls repository methods directly (no IPC layer).
 
 ### `packages/shared/src/schema/events.ts`
 All 18 event types with Zod-validated payloads. The source of truth for the event model.
@@ -218,7 +217,7 @@ Both DBs auto-migrate on startup via `bootstrapSql` in their respective `db.ts` 
 ## Testing Strategy
 
 - **Unit tests**: Vitest with coverage (`vitest.config.ts` at root). Server repository has `repository.test.ts`.
-- **E2E tests**: Playwright with Electron. Two projects:
+- **E2E tests**: Playwright with Tauri. Two projects:
   - `ui` — UI-driven (Playwright clicks/types)
   - `runtime` — API-driven (calls `window.desktopApi` directly)
 - E2E tests run serially (`workers: 1`) with 3-min timeout
@@ -235,8 +234,9 @@ Both DBs auto-migrate on startup via `bootstrapSql` in their respective `db.ts` 
 - Env vars via `.env` (see `.env.example`)
 
 ### Desktop App
-- Built via `electron-builder`: `.dmg` (macOS), `.exe` (Windows), `.AppImage` (Linux)
+- Built via Tauri bundler: `.dmg` (macOS), `.msi`/`.exe` (Windows), `.deb`/`.AppImage` (Linux)
 - `npm run dist:linux / dist:mac / dist:win`
+- Requires Rust toolchain installed
 
 ---
 
@@ -245,8 +245,7 @@ Both DBs auto-migrate on startup via `bootstrapSql` in their respective `db.ts` 
 - All code is TypeScript with ES modules (`.js` extension in imports)
 - Zod for all external boundary validation
 - ULID for all entity IDs (generated with `ulid()`)
-- Drizzle ORM for SQLite queries (desktop), raw SQL via `pg` for PostgreSQL (server)
-- Raw `sqlite.prepare()` used for complex queries in repository
+- Drizzle ORM (sqlite-proxy) for SQLite queries (desktop), raw SQL via `pg` for PostgreSQL (server)
 - Tailwind CSS v4 with dark zinc theme
 - No React Router — screen routing via Zustand `screen` state
 - Single-file UI pattern: all components in `App.tsx`
@@ -261,7 +260,7 @@ Both DBs auto-migrate on startup via `bootstrapSql` in their respective `db.ts` 
 3. **Sync correctness**: Pull uses `server_seq`, not timestamps. Don't change this.
 4. **Idempotent events**: Events use ULID as PK with `ON CONFLICT DO NOTHING`.
 5. **Shared package builds first**: Always build `packages/shared` before apps.
-6. **IPC contract**: `DesktopApi` in shared types is the single source of truth for main↔renderer communication.
+6. **Repository as API surface**: `repository.ts` methods are the single source of truth for data operations, called directly from store.ts.
 7. **Validation at boundaries**: Zod schemas validate all inputs in repository methods.
 8. **No raw IDs in UI**: Timeline events get human-readable `timelineText`. System events show "Alice joined the project", not `member.joined`.
 
@@ -272,22 +271,19 @@ Both DBs auto-migrate on startup via `bootstrapSql` in their respective `db.ts` 
 ### Adding a new event type
 1. Add to `eventTypeSchema` enum in `packages/shared/src/schema/events.ts`
 2. Define payload schema and add to `eventPayloadSchema` discriminated union
-3. Add projection logic in `apps/desktop/src/main/repository.ts` (`applyLocalEvent`)
+3. Add projection logic in `apps/desktop/src/core/repository.ts` (`applyLocalEvent`)
 4. Add projection logic in `apps/sync-server/src/repository.ts` (`applyProjection`)
 5. Add timeline text generation in desktop repository's `hydrateTimelineEvent`
 6. If new entity: add table to both `db.ts` files and `schema.ts`
 
-### Adding a new IPC method
-1. Add method signature to `DesktopApi` in `packages/shared/src/types/index.ts`
-2. Implement in `apps/desktop/src/main/repository.ts`
-3. Register handler in `apps/desktop/src/main/ipc.ts`
-4. Expose in preload script
-5. Add store action in `apps/desktop/src/renderer/store.ts`
+### Adding a new repository method
+1. Implement in `apps/desktop/src/core/repository.ts`
+2. Call from store action in `apps/desktop/src/store.ts`
 
 ### Adding a new UI feature
 1. Add store state/action in `store.ts`
 2. Add component in `App.tsx` (or extract if significantly large)
-3. Wire to `desktopApi` calls
+3. Wire to repository calls via store actions
 
 ---
 

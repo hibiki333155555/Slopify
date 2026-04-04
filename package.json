@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "npm run build -w packages/shared && docker compose up -d --wait postgres && dotenv -- concurrently -k -n server,desktop -c cyan,green \"npm run dev:sync-server\" \"npm run dev:desktop\"",
     "build": "npm run build -w packages/shared && npm run build -w apps/sync-server && npm run build -w apps/desktop",
-    "dev:desktop": "npm run -w apps/desktop dev:desktop",
+    "dev:desktop": "npm run dev -w apps/desktop",
     "dev:sync-server": "npm run -w apps/sync-server dev",
     "dist": "npm run build -w packages/shared && npm run dist -w apps/desktop",
     "dist:mac": "npm run build -w packages/shared && npm run dist:mac -w apps/desktop",

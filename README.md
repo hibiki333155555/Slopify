@@ -2,7 +2,13 @@
 
 make AI Slop a lot.
 
-Local-first, event-sourced collaborative workspace. Electron desktop client with SQLite syncs via Socket.IO to a Fastify/PostgreSQL server. Works fully offline.
+Local-first, event-sourced collaborative workspace. Tauri v2 desktop client with SQLite syncs via Socket.IO to a Fastify/PostgreSQL server. Works fully offline.
+
+## Prerequisites
+
+- Node.js 20+
+- Rust toolchain (install via [rustup](https://rustup.rs/))
+- Docker (for PostgreSQL and sync-server)
 
 ## Setup
 
@@ -64,7 +70,7 @@ Give users the server URL (`http://YOUR_VPS_IP:4000`) and password. See `docs/de
 
 ## Stack
 
-- Electron + React + Zustand (desktop)
+- Tauri v2 + React + Zustand (desktop)
 - Fastify + Socket.IO + PostgreSQL (server)
-- SQLite + Drizzle ORM (local storage)
+- SQLite + Drizzle ORM via tauri-plugin-sql (local storage)
 - TypeScript, Zod, ULID
