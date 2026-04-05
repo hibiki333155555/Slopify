@@ -138,9 +138,13 @@ export const getDb = (): Database => {
 
 export const db = drizzle(async (sql, params, method) => {
   const s = getDb();
-  if (method === "all" || method === "get") {
+  if (method === "all") {
     const rows = await s.select(sql, params as unknown[]);
     return { rows: rows as Record<string, unknown>[] };
+  }
+  if (method === "get") {
+    const rows = await s.select(sql, params as unknown[]);
+    return { rows: (rows as Record<string, unknown>[])[0] as unknown as Record<string, unknown>[] };
   }
   await s.execute(sql, params as unknown[]);
   return { rows: [] };
