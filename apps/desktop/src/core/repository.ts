@@ -2032,8 +2032,11 @@ export class DesktopRepository {
   }
 
   private async getMeta(key: MetaKey): Promise<string | null> {
-    const row = await db.select().from(appMeta).where(eq(appMeta.key, key)).get();
-    return row?.value ?? null;
+    const rows = await rawQuery<{ value: string }>(
+      "SELECT value FROM app_meta WHERE key = ?",
+      [key],
+    );
+    return rows[0]?.value ?? null;
   }
 
   private async requireMeta(key: MetaKey): Promise<string> {
@@ -2045,14 +2048,10 @@ export class DesktopRepository {
   }
 
   private async setMeta(key: MetaKey, value: string): Promise<void> {
-    await db
-      .insert(appMeta)
-      .values({ key, value })
-      .onConflictDoUpdate({
-        target: appMeta.key,
-        set: { value },
-      })
-      .run();
+    await rawExecute(
+      "INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      [key, value],
+    );
   }
 
   private async displayNameForEventActor(userId: string): Promise<string> {

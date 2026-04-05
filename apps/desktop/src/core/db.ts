@@ -136,17 +136,23 @@ export const getDb = (): Database => {
   return sqlite;
 };
 
+// Drizzle generates ON CONFLICT ("table"."column") but SQLite only accepts ON CONFLICT ("column").
+// Strip table qualifiers from ON CONFLICT clauses.
+const fixOnConflict = (sql: string): string =>
+  sql.replace(/on conflict \(("[^"]+")\.("[^"]+")\)/gi, "on conflict ($2)");
+
 export const db = drizzle(async (sql, params, method) => {
   const s = getDb();
+  const fixedSql = fixOnConflict(sql);
   if (method === "all") {
-    const rows = await s.select(sql, params as unknown[]);
+    const rows = await s.select(fixedSql, params as unknown[]);
     return { rows: rows as Record<string, unknown>[] };
   }
   if (method === "get") {
-    const rows = await s.select(sql, params as unknown[]);
+    const rows = await s.select(fixedSql, params as unknown[]);
     return { rows: (rows as Record<string, unknown>[])[0] as unknown as Record<string, unknown>[] };
   }
-  await s.execute(sql, params as unknown[]);
+  await s.execute(fixedSql, params as unknown[]);
   return { rows: [] };
 });
 
