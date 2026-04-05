@@ -4,13 +4,18 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const gitHash = (() => {
-  try { return execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim(); }
-  catch { return "unknown"; }
+const appVersion = (() => {
+  try {
+    const conf = JSON.parse(readFileSync(path.join(__dirname, "src-tauri/tauri.conf.json"), "utf-8"));
+    const ver = conf.version ?? "0.0.0";
+    const hash = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+    return `${ver} (${hash})`;
+  } catch { return "unknown"; }
 })();
 
 const host = process.env.TAURI_DEV_HOST;
@@ -19,7 +24,7 @@ export default defineConfig({
   root: __dirname,
   plugins: [react(), tailwindcss()],
   define: {
-    __APP_VERSION__: JSON.stringify(gitHash),
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
   clearScreen: false,
   server: {

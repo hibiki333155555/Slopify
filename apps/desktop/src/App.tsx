@@ -1533,6 +1533,10 @@ const SettingsScreen = (): JSX.Element => {
             Save settings
           </button>
         </div>
+
+        <div className="mt-4 pt-3 border-t border-zinc-800/60 text-center">
+          <span className="text-[10px] font-mono text-zinc-600">Slopify v{__APP_VERSION__}</span>
+        </div>
       </form>
     </main>
   );
