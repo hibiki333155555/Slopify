@@ -141,16 +141,22 @@ export const getDb = (): Database => {
 const fixOnConflict = (sql: string): string =>
   sql.replace(/on conflict \(("[^"]+")\.("[^"]+")\)/gi, "on conflict ($2)");
 
+// Drizzle's mapResultRow accesses row values by column INDEX (row[0], row[1], ...),
+// but tauri-plugin-sql returns objects ({ column_name: value }).
+// Convert each row object to a values array, preserving column order from the SQL.
+const objectToArray = (row: Record<string, unknown>): unknown[] => Object.values(row);
+
 export const db = drizzle(async (sql, params, method) => {
   const s = getDb();
   const fixedSql = fixOnConflict(sql);
   if (method === "all") {
     const rows = await s.select(fixedSql, params as unknown[]);
-    return { rows: rows as Record<string, unknown>[] };
+    return { rows: (rows as Record<string, unknown>[]).map(objectToArray) };
   }
   if (method === "get") {
     const rows = await s.select(fixedSql, params as unknown[]);
-    return { rows: (rows as Record<string, unknown>[])[0] as unknown as Record<string, unknown>[] };
+    const first = (rows as Record<string, unknown>[])[0];
+    return { rows: first ? objectToArray(first) : undefined };
   }
   await s.execute(fixedSql, params as unknown[]);
   return { rows: [] };
