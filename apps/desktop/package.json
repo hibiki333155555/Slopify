@@ -12,7 +12,8 @@
     "dist": "tauri build",
     "dist:mac": "tauri build --target universal-apple-darwin",
     "dist:win": "tauri build --target x86_64-pc-windows-msvc",
-    "dist:linux": "tauri build --target x86_64-unknown-linux-gnu"
+    "dist:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@slopify/shared": "file:../../packages/shared",
