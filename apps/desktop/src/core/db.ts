@@ -143,20 +143,57 @@ const fixOnConflict = (sql: string): string =>
 
 // Drizzle's mapResultRow accesses row values by column INDEX (row[0], row[1], ...),
 // but tauri-plugin-sql returns objects ({ column_name: value }).
-// Convert each row object to a values array, preserving column order from the SQL.
-const objectToArray = (row: Record<string, unknown>): unknown[] => Object.values(row);
+// Extract column names from SELECT clause and reorder values to match.
+const extractSelectColumns = (sql: string): string[] | null => {
+  const match = sql.match(/^select\s+(.+?)\s+from\s/i);
+  if (!match) return null;
+  // Parse column list: handles "col", "table"."col", "col" as "alias", count(*), etc.
+  const cols: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of match[1]!) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      cols.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  cols.push(current.trim());
+
+  return cols.map((col): string => {
+    // "table"."col" → col (without quotes)
+    const dotMatch = col.match(/"[^"]*"\."([^"]*)"/);
+    if (dotMatch) return dotMatch[1]!;
+    // "col" → col
+    const quoted = col.match(/^"([^"]*)"$/);
+    if (quoted) return quoted[1]!;
+    // col as "alias" or col as alias → use original col name
+    return col.replace(/\s+as\s+.*/i, "").replace(/"/g, "").trim();
+  });
+};
+
+const rowToArray = (row: Record<string, unknown>, columns: string[] | null): unknown[] => {
+  if (columns === null) return Object.values(row);
+  return columns.map((col) => row[col]);
+};
 
 export const db = drizzle(async (sql, params, method) => {
   const s = getDb();
   const fixedSql = fixOnConflict(sql);
   if (method === "all") {
-    const rows = await s.select(fixedSql, params as unknown[]);
-    return { rows: (rows as Record<string, unknown>[]).map(objectToArray) };
+    const rows = await s.select(fixedSql, params as unknown[]) as Record<string, unknown>[];
+    const columns = rows.length > 0 ? extractSelectColumns(fixedSql) : null;
+    return { rows: rows.map((r) => rowToArray(r, columns)) };
   }
   if (method === "get") {
-    const rows = await s.select(fixedSql, params as unknown[]);
-    const first = (rows as Record<string, unknown>[])[0];
-    return { rows: first ? objectToArray(first) : undefined };
+    const rows = await s.select(fixedSql, params as unknown[]) as Record<string, unknown>[];
+    const first = rows[0];
+    if (!first) return { rows: [] };
+    const columns = extractSelectColumns(fixedSql);
+    return { rows: rowToArray(first, columns) };
   }
   await s.execute(fixedSql, params as unknown[]);
   return { rows: [] };
